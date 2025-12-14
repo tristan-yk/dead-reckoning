@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "STM32_Shield")(type "KiCad")(uri "${KIPRJMOD}/custom components/symbols/STM32_Shield.kicad_sym")(options "")(descr ""))
+  (lib (name "Custom_Components")(type "KiCad")(uri "${KIPRJMOD}/custom components/symbols/Custom_Components.kicad_sym")(options "")(descr ""))
+)

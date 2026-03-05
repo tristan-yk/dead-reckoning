@@ -103,6 +103,12 @@ static HAL_StatusTypeDef i2c_reg_write(uint8_t addr7, uint8_t reg, uint8_t val) 
   return HAL_I2C_Mem_Write(&hi2c1, (uint16_t)(addr7 << 1), reg, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
 }
 
+static uint8_t i2c_read_u8(uint8_t addr7, uint8_t reg) {
+  uint8_t v = 0;
+  (void)i2c_reg_read(addr7, reg, &v, 1);
+  return v;
+}
+
 // ---------- SH1106: command/data ----------
 static HAL_StatusTypeDef sh1106_cmd(uint8_t cmd) {
   uint8_t pkt[2] = {0x00, cmd}; // 0x00 = control byte for command
@@ -154,7 +160,7 @@ static void sh1106_fill(uint8_t color /*0x00 black, 0xFF white*/) {
     sh1106_cmd((uint8_t)(0xB0 | page)); // set page address
     // set column address with offset
     uint8_t col = SH1106_COL_OFF;
-    sh1106_cmd((uint8_t)(0x00 | (col & 0x0F)));       // lower nibble
+    sh1106_cmd((uint8_t)(0x00 | (col & 0x0F)));        // lower nibble
     sh1106_cmd((uint8_t)(0x10 | ((col >> 4) & 0x0F))); // upper nibble
     sh1106_data(line, sizeof(line));
   }
@@ -173,6 +179,89 @@ static bool bno055_read_euler_deg(float *heading, float *roll, float *pitch) {
   *heading = (float)h / 16.0f;
   *roll    = (float)r / 16.0f;
   *pitch   = (float)p / 16.0f;
+  return true;
+}
+
+// ---------- BNO055 debug/status ----------
+static void bno055_debug_print(void) {
+  uint8_t opr      = i2c_read_u8(BNO055_ADDR_7B, 0x3D); // OPR_MODE
+  uint8_t pwr      = i2c_read_u8(BNO055_ADDR_7B, 0x3E); // PWR_MODE
+  uint8_t page     = i2c_read_u8(BNO055_ADDR_7B, 0x07); // PAGE_ID
+  uint8_t sys_stat = i2c_read_u8(BNO055_ADDR_7B, 0x39); // SYS_STAT
+  uint8_t sys_err  = i2c_read_u8(BNO055_ADDR_7B, 0x3A); // SYS_ERR
+  uint8_t cal      = i2c_read_u8(BNO055_ADDR_7B, 0x35); // CALIB_STAT
+  uint8_t unit     = i2c_read_u8(BNO055_ADDR_7B, 0x3B); // UNIT_SEL
+
+  printf("BNO st: opr=0x%02X pwr=0x%02X page=0x%02X sys_stat=0x%02X sys_err=0x%02X cal=0x%02X unit=0x%02X\r\n",
+         opr, pwr, page, sys_stat, sys_err, cal, unit);
+
+  uint8_t e[6] = {0};
+  if (i2c_reg_read(BNO055_ADDR_7B, 0x1A, e, 6) == HAL_OK) {
+    printf("BNO Euler bytes: %02X %02X %02X %02X %02X %02X\r\n",
+           e[0], e[1], e[2], e[3], e[4], e[5]);
+  } else {
+    printf("BNO Euler bytes: read fail\r\n");
+  }
+}
+
+// ---------- BNO055 robust init (poll ID, reset, config, mode, readback) ----------
+static bool bno055_init_ndof(void)
+{
+  uint8_t id = 0;
+
+  // Poll for chip ID to become valid (don’t fail immediately at boot)
+  for (int i = 0; i < 100; i++) {
+    if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) == HAL_OK && id == 0xA0) break;
+    HAL_Delay(10);
+  }
+  if (id != 0xA0) {
+    printf("BNO055: chip ID not found (got 0x%02X)\r\n", id);
+    return false;
+  }
+
+  // Soft reset
+  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3F, 0x20); // SYS_TRIGGER: reset
+  HAL_Delay(650);
+
+  // Poll again for chip ID after reset
+  id = 0;
+  for (int i = 0; i < 100; i++) {
+    if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) == HAL_OK && id == 0xA0) break;
+    HAL_Delay(10);
+  }
+  if (id != 0xA0) {
+    printf("BNO055: chip ID after reset not found (got 0x%02X)\r\n", id);
+    return false;
+  }
+
+  // Enter config mode
+  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x00);  // OPR_MODE = CONFIG
+  HAL_Delay(30);
+
+  // Normal power mode
+  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3E, 0x00);  // PWR_MODE = normal
+  HAL_Delay(10);
+
+  // Page 0
+  (void)i2c_reg_write(BNO055_ADDR_7B, 0x07, 0x00);  // PAGE_ID = 0
+  HAL_Delay(10);
+
+  // Optional: use external crystal (comment out if you don’t have it wired)
+  // (void)i2c_reg_write(BNO055_ADDR_7B, 0x3F, 0x80);
+  // HAL_Delay(10);
+
+  // Switch to fusion mode NDOF
+  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x0C);  // OPR_MODE = NDOF
+  HAL_Delay(50);
+
+  // Readback and report
+  uint8_t opr = i2c_read_u8(BNO055_ADDR_7B, 0x3D);
+  uint8_t sys_err = i2c_read_u8(BNO055_ADDR_7B, 0x3A);
+  printf("BNO055 init: OPR_MODE=0x%02X SYS_ERR=0x%02X\r\n", opr, sys_err);
+
+  // If OPR_MODE didn’t stick, you’re not in NDOF, and Euler can stay 0
+  if (opr != 0x0C) return false;
+
   return true;
 }
 
@@ -210,63 +299,29 @@ static bool button_pressed_edge(button_t *b) {
   return pressed;
 }
 
-static bool bno055_init_ndof(void)
-{
-  uint8_t id = 0;
-  if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) != HAL_OK || id != 0xA0) return false;
-
-  HAL_Delay(650);                 // BNO055 boot time per datasheet-ish practice
-
-  i2c_reg_write(BNO055_ADDR_7B, 0x3F, 0x20);  // SYS_TRIGGER: reset
-  HAL_Delay(650);
-
-  // wait for chip ID again
-  for (int i=0;i<50;i++){
-    if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1)==HAL_OK && id==0xA0) break;
-    HAL_Delay(20);
-  }
-
-  i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x00);  // OPR_MODE = CONFIG
-  HAL_Delay(30);
-
-  i2c_reg_write(BNO055_ADDR_7B, 0x3E, 0x00);  // PWR_MODE = normal
-  HAL_Delay(10);
-
-  i2c_reg_write(BNO055_ADDR_7B, 0x07, 0x00);  // PAGE_ID = 0
-  HAL_Delay(10);
-
-  i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x0C);  // OPR_MODE = NDOF
-  HAL_Delay(30);
-
-  return true;
-}
-
 static bool bmp390_init_basic(void)
 {
   uint8_t id=0;
   if (i2c_reg_read(BMP390_ADDR_7B, 0x00, &id, 1) != HAL_OK || id != 0x60) return false;
 
   // Soft reset
-  i2c_reg_write(BMP390_ADDR_7B, 0x7E, 0xB6);
+  (void)i2c_reg_write(BMP390_ADDR_7B, 0x7E, 0xB6);
   HAL_Delay(10);
 
   // Enable pressure + temperature
-  // PWR_CTRL (0x1B): bit0=press_en, bit1=temp_en, bit4=mode (normal) depending on BMP390 map
-  // Common pattern: press_en=1, temp_en=1, mode=normal (0b11 in mode field)
-  i2c_reg_write(BMP390_ADDR_7B, 0x1B, 0x33); // typical: press_en=1,temp_en=1, normal_mode=1 (verify if needed)
+  // PWR_CTRL (0x1B): pattern depends on exact BMP390 register map; this is a common “works on many examples” value.
+  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1B, 0x33);
   HAL_Delay(5);
 
   // OSR (0x1C): set modest oversampling
-  i2c_reg_write(BMP390_ADDR_7B, 0x1C, 0x02); // example
+  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1C, 0x02);
   // ODR (0x1D): output data rate
-  i2c_reg_write(BMP390_ADDR_7B, 0x1D, 0x03); // example
+  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1D, 0x03);
   // CONFIG (0x1F): IIR etc (optional)
-  i2c_reg_write(BMP390_ADDR_7B, 0x1F, 0x00);
+  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1F, 0x00);
 
   return true;
 }
-
-
 
 /* USER CODE END 0 */
 
@@ -276,9 +331,7 @@ static bool bmp390_init_basic(void)
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -287,14 +340,12 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -302,6 +353,7 @@ int main(void)
   MX_I2C1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
   // --- Optional: quick ID checks ---
   uint8_t id = 0;
 
@@ -320,13 +372,10 @@ int main(void)
   sh1106_init();
   sh1106_fill(0x00); // start black
 
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
 
   button_t btn_ss  = {BTN_STARTSTOP_GPIO_Port, BTN_STARTSTOP_Pin, 1, "STARTSTOP"};
   button_t btn_cal = {BTN_CAL_GPIO_Port,      BTN_CAL_Pin,       1, "CAL"};
@@ -340,12 +389,14 @@ int main(void)
   uint32_t next_oled_toggle_ms = HAL_GetTick() + 1000; // toggle every 1000ms => 0.5Hz flash
   uint8_t  oled_white = 0;
 
-  uint32_t next_print_ms = HAL_GetTick() + 200; // 5Hz
+  uint32_t next_print_ms = HAL_GetTick() + 200;  // 5Hz
+  uint32_t next_bno_dbg_ms = HAL_GetTick() + 1000; // 1Hz extra BNO status dump
 
-  printf("BNO055 init: %d\r\n", bno055_init_ndof());
-  printf("BMP390 init: %d\r\n", bmp390_init_basic());
+  bool bno_ok = bno055_init_ndof();
+  bool bmp_ok = bmp390_init_basic();
 
-
+  printf("BNO055 init ok=%u\r\n", (unsigned)bno_ok);
+  printf("BMP390 init ok=%u\r\n", (unsigned)bmp_ok);
 
   while (1)
   {
@@ -356,6 +407,12 @@ int main(void)
       oled_white ^= 1;
       sh1106_fill(oled_white ? 0xFF : 0x00);
       next_oled_toggle_ms += 1000;
+    }
+
+    // ----- 1 Hz: dump BNO mode/status + raw euler bytes -----
+    if ((int32_t)(now - next_bno_dbg_ms) >= 0) {
+      bno055_debug_print();
+      next_bno_dbg_ms += 1000;
     }
 
     // ----- 5 Hz status line -----
@@ -444,13 +501,10 @@ void SystemClock_Config(void)
   */
 static void MX_I2C1_Init(void)
 {
-
   /* USER CODE BEGIN I2C1_Init 0 */
-
   /* USER CODE END I2C1_Init 0 */
 
   /* USER CODE BEGIN I2C1_Init 1 */
-
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
   hi2c1.Init.Timing = 0x40B285C2;
@@ -480,9 +534,7 @@ static void MX_I2C1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN I2C1_Init 2 */
-
   /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
@@ -492,13 +544,10 @@ static void MX_I2C1_Init(void)
   */
 static void MX_USART2_UART_Init(void)
 {
-
   /* USER CODE BEGIN USART2_Init 0 */
-
   /* USER CODE END USART2_Init 0 */
 
   /* USER CODE BEGIN USART2_Init 1 */
-
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 115200;
@@ -528,9 +577,7 @@ static void MX_USART2_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
-
   /* USER CODE END USART2_Init 2 */
-
 }
 
 /**
@@ -541,8 +588,8 @@ static void MX_USART2_UART_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -560,12 +607,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-
 /* USER CODE END 4 */
 
 /**
@@ -575,7 +621,6 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
   {
@@ -594,8 +639,6 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

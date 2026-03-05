@@ -1,8 +1,8 @@
+# =========================================================
+# KiCad
+# =========================================================
 # Adapted from:
 # https://github.com/github/gitignore/blob/master/KiCad.gitignore
-
-# For PCBs designed using KiCad: http://www.kicad-pcb.org/
-# Format documentation: http://kicad-pcb.org/help/file-formats/
 
 # Temporary files
 *.000
@@ -20,14 +20,14 @@ _autosave-*
 fp-info-cache
 /build
 
-# Netlist files (exported from Eeschema)
+# Netlist files
 *.net
 
-# Autorouter files (exported from Pcbnew)
+# Autorouter files
 *.dsn
 *.ses
 
-# Footprint association file (exported from Pcbnew)
+# Footprint association
 *.cmp
 
 # Exported BOM files
@@ -39,3 +39,84 @@ fp-info-cache
 *.log
 *.raw
 .svg2shenzhen-cache
+
+# =========================================================
+# MATLAB / Simulink
+# =========================================================
+
+# Autosave / backup
+*.asv
+*.autosave
+*.slxc
+*.slx.autosave
+*.mdl.autosave
+
+# Simulink cache
+slprj/
+simulink_cache/
+*.slxc
+
+# MATLAB code generation
+codegen/
+*_ert_rtw/
+*_grt_rtw/
+*_rtw/
+*_tlc/
+rtw/
+
+# Simulink build artifacts
+*.rtw
+*.rti
+*.tmf
+*.mex*
+*.o
+*.obj
+*.a
+*.lib
+*.exp
+*.ilk
+*.pdb
+
+# MATLAB preferences and local configs
+prefdir/
+*.prf
+
+# MATLAB path definition
+pathdef.m
+
+# Simulink project cache
+resources/project/
+*.autosave
+
+# MATLAB editor temp files
+*.m~ 
+
+# Parallel computing toolbox
+*.matlabpool
+
+# MATLAB test artifacts
+testresults/
+testoutput/
+
+# =========================================================
+# Simulation outputs (optional)
+# =========================================================
+
+# Large simulation data
+*.mat
+*.hdf5
+
+# Coverage / logging
+*.cvt
+*.cov
+
+# =========================================================
+# OS / editor junk
+# =========================================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/
+.idea/

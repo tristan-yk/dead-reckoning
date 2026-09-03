@@ -1,9 +1,15 @@
-function [x, P, F] = ekf_dynamics(dt, x, P, gyro_meas)
+function [x, P] = ekf_dynamics(dt, x, P, gyro_meas)
     %#codegen
 
-    sg  = 1e-3;    % gyro noise density,     rad/s/√Hz
-    sbg = 1e-4;    % gyro bias walk,         rad/s/√s
-    sa  = 1;     % vertical accel disturb,   m/s²/√s
+    persistent params
+
+    if isempty(params)
+        params = load("filter_params.mat");
+    end
+
+    sg = params.sg;
+    sbg = params.sbg;
+    sa = params.sa;
     
     q = x(1:4);
     b = x(5:7);
@@ -30,7 +36,6 @@ function [x, P, F] = ekf_dynamics(dt, x, P, gyro_meas)
     % state update
     qn = [q(1)*dq(1) - q(2:4)'*dq(2:4);
           q(1)*dq(2:4) + dq(1)*q(2:4) + cross(q(2:4), dq(2:4))];
-    qn = qn / norm(qn);
     x = [qn; b; a; v + a * dt; h + v * dt + 0.5 * a * dt^2];
 
 
@@ -69,6 +74,6 @@ function [x, P, F] = ekf_dynamics(dt, x, P, gyro_meas)
     Q(1:4,1:4) = Q(1:4,1:4) + 1e-12*eye(4); % increase Q to compensate no ES EKF
 
     P = F * P * F' + Q;
-    P = (P + P') / 2; % maintain symmetry
-
+    
+    [x, P] = ekf_norm(x, P);
 end

@@ -1,0 +1,25 @@
+
+
+% filter init
+P0 = blkdiag(1e-4*eye(4), ...      % attitude, ~1-4 deg
+             1e-6*eye(3), ...      % gyro bias, ~1e-3 rad/s
+             1e-2,        ...      % a_z, ~0.1 m/s^2
+             1e-4,        ...      % v_z, ~0.01 m/s (static)
+             1e-2         );       % h, ~0.1 m
+
+a_fast = 0.001;
+a_slow = 0.005;
+
+
+% dynamics
+sg  = 1e-3;    % gyro noise density,     rad/s/√Hz
+sbg = 1e-4;    % gyro bias walk,         rad/s/√s
+sa  = 1;       % vertical accel disturb,   m/s²/√s
+
+% innov
+R_accel = 0.05 * eye(3);
+R_mag = (3 * pi / 180)^2; % 3 degrees RMS
+R_baro = 4;    % 2 Pa RMS
+
+
+save("filter_params.mat");

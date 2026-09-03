@@ -6,6 +6,6 @@ function q = init_orientation(d, mag)
     n = n / norm(n);
     e = cross(d, n);
     R_bn = [n e d];
-    q = dcm2quat(R_bn');
+    q = dcm2q(R_bn');
 
 end

@@ -6,6 +6,5 @@ function [x, P, mem] = filter_entry(x, P, mem, dt, sens_in, is_init)
     else
         [x, P, mem] = filter_loop(x, P, mem, dt, sens_in);
     end
-
-
+    
 end

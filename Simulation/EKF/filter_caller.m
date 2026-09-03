@@ -1,4 +1,4 @@
-function [attitude, altitude, P_norm] = ekf_caller(time, accel, gyro, mag, baro)
+function [attitude, altitude, P_norm] = filter_caller(time, accel, gyro, mag, baro)
     idle_time = 10;
 
     persistent state P t_old g
@@ -33,7 +33,7 @@ function [attitude, altitude, P_norm] = ekf_caller(time, accel, gyro, mag, baro)
     [state, P, g] = ekf(dt, ekf_active, state, P, g, accel, gyro, mag, baro);
 
     attitude = state(1:4);
-    altitude = 0; %state(9);
-    P_norm = 0; %norm(P);
+    altitude = 0; % state(9);
+    P_norm = 0; % norm(P);
 
 end

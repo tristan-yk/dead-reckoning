@@ -1,0 +1,5 @@
+../Core/Src/app_state.c:14:6:app_state_init	4	static
+../Core/Src/app_state.c:19:6:app_state_update	16	static
+../Core/Src/app_state.c:62:13:app_state_get	4	static
+../Core/Src/app_state.c:67:13:app_state_name	16	static
+../Core/Src/app_state.c:77:6:app_state_filter_active	4	static

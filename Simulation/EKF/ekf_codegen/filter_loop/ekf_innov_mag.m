@@ -22,11 +22,11 @@ function [x, P] = ekf_innov_mag(x, P, mag)
                 mag(3)      0 -mag(1);
                -mag(2)  mag(1)      0];
     
-    dm = zeros(3, 4);
+    dm = zeros(3, 4, 'like', x);
     dm(:,1)   = 2 * qw * mag + 2 * cross(qv, mag);
     dm(:,2:4) = -2 * mag * qv' + 2 * (qv' * mag) * eye(3) + 2 * qv * mag' - 2 * qw * m_cross;
 
-    H = zeros(1, 10);
+    H = zeros(1, 10, 'like', x);
     H(1:4) = dpsi * dm;
     R = R * (mag' * mag) / d; 
 

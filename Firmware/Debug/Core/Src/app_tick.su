@@ -1,0 +1,11 @@
+../Core/Src/app_tick.c:27:13:dwt_init	4	static
+../Core/Src/app_tick.c:34:6:app_tick_init	16	static
+../Core/Src/app_tick.c:61:6:app_tick_pending	16	static
+../Core/Src/app_tick.c:79:10:app_tick_overruns	4	static
+../Core/Src/app_tick.c:84:10:app_tick_index	4	static
+../Core/Src/app_tick.c:89:8:app_tick_time_s	8	static
+../Core/Src/app_tick.c:94:10:app_cycles	4	static
+../Core/Src/app_tick.c:99:10:app_cycles_to_us	16	static
+../Core/Src/app_tick.c:104:7:app_cycles_to_s	16	static
+../Core/Src/app_tick.c:109:6:TIM2_IRQHandler	8	static
+../Core/Src/app_tick.c:114:6:HAL_TIM_PeriodElapsedCallback	16	static

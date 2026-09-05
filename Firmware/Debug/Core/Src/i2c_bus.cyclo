@@ -1,0 +1,4 @@
+../Core/Src/i2c_bus.c:18:6:i2c_read	1
+../Core/Src/i2c_bus.c:25:6:i2c_write	1
+../Core/Src/i2c_bus.c:32:9:i2c_read_u8	1
+../Core/Src/i2c_bus.c:39:6:i2c_transmit	1

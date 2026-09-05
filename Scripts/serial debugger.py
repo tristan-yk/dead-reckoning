@@ -2,7 +2,7 @@ import serial
 import sys
 
 PORT = "COM11"
-BAUD = 115200
+BAUD = 921600
 
 try:
     ser = serial.Serial(

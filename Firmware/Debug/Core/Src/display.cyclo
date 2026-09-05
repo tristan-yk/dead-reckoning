@@ -1,0 +1,8 @@
+../Core/Src/display.c:38:13:send_command	1
+../Core/Src/display.c:44:13:send_data	3
+../Core/Src/display.c:61:6:display_init	3
+../Core/Src/display.c:93:6:display_clear	1
+../Core/Src/display.c:99:6:display_text	12
+../Core/Src/display.c:135:6:display_line	4
+../Core/Src/display.c:154:6:display_dirty	1
+../Core/Src/display.c:159:6:display_service	8

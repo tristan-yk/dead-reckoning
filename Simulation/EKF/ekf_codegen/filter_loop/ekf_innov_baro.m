@@ -14,7 +14,7 @@ function [x, P] = ekf_innov_baro(x, P, baro, p0)
     h = x(10);
     u = 1 - L * h / T0;
     z = p0 * u^k;
-    H = zeros(1, 10);
+    H = zeros(1, 10, 'like', x);
     H(10) = -p0 * k * L / T0 * u^(k-1);
 
     y = baro - z;

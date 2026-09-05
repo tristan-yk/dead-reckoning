@@ -51,7 +51,7 @@ function [x, P] = ekf_dynamics(dt, x, P, gyro_meas)
 
    
     % dynamics jacobian
-    F = zeros(10);
+    F = zeros(10, 'like', x);
     F(1:4, 1:4) = expm(0.5 * dt * Omega_tilde); % q
     F(1:4, 5:7) = -dt * Q_tilde * Psi; %q bias update
     F(5:7, 5:7) = eye(3); % b
@@ -60,7 +60,7 @@ function [x, P] = ekf_dynamics(dt, x, P, gyro_meas)
     F(10, 8:10) = [0.5*dt^2 dt 1]; % h
 
     % model noise jacobian
-    G = zeros(10,7);
+    G = zeros(10, 7, 'like', x);
     G(1:4,1:3) = F(1:4,5:7);
     G(5:7,4:6) = eye(3);
     G(8,7)     = 1;

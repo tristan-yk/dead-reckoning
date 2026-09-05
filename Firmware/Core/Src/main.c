@@ -21,7 +21,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "app_state.h"
+#include "app_tick.h"
+#include "buttons.h"
+#include "display.h"
+#include "filter_app.h"
+#include "i2c_bus.h"
+#include "sensors.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,268 +65,111 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 
-// ----- I2C addresses (7-bit) -----
-#define OLED_ADDR_7B   0x3C
-#define BNO055_ADDR_7B 0x28
-#define BMP390_ADDR_7B 0x77
-
-// ----- SH1106 geometry -----
-#define SH1106_WIDTH   128
-#define SH1106_HEIGHT  64
-#define SH1106_PAGES   (SH1106_HEIGHT/8)
-#define SH1106_COL_OFF 2   // your panel needed offset=2 to fully clear
-
-// ----- Buttons (adjust if CubeMX names differ) -----
-#define BTN_STARTSTOP_GPIO_Port GPIOA
-#define BTN_STARTSTOP_Pin       GPIO_PIN_10
-
-#define BTN_CAL_GPIO_Port       GPIOB
-#define BTN_CAL_Pin             GPIO_PIN_3
-
-#define BTN_LAP_GPIO_Port       GPIOB
-#define BTN_LAP_Pin             GPIO_PIN_5
-
-extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart2;
 
 // ---------- printf retarget (USART2) ----------
+// Blocking. At 921600 baud a 200-character line costs about 2.2 ms, which fits
+// inside the tick, but it is still the largest avoidable cost in the loop and
+// is the thing to move to DMA when the serial stream goes continuous.
 int _write(int file, char *ptr, int len) {
   (void)file;
   HAL_UART_Transmit(&huart2, (uint8_t*)ptr, (uint16_t)len, HAL_MAX_DELAY);
   return len;
 }
 
-// ---------- I2C helpers ----------
-static HAL_StatusTypeDef i2c_reg_read(uint8_t addr7, uint8_t reg, uint8_t *buf, uint16_t len) {
-  return HAL_I2C_Mem_Read(&hi2c1, (uint16_t)(addr7 << 1), reg, I2C_MEMADD_SIZE_8BIT, buf, len, 100);
+static float vec3_norm(const float v[3]) {
+  return sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 }
 
-static HAL_StatusTypeDef i2c_reg_write(uint8_t addr7, uint8_t reg, uint8_t val) {
-  return HAL_I2C_Mem_Write(&hi2c1, (uint16_t)(addr7 << 1), reg, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
+// Body-to-nav quaternion (Hamilton, scalar first) to NED roll/pitch/yaw in
+// degrees. For reporting only; the filter works in quaternions throughout.
+static void quat_to_euler_deg(const float q[4], float *roll, float *pitch, float *yaw) {
+  const float w = q[0], x = q[1], y = q[2], z = q[3];
+  const float rad_to_deg = 57.29577951f;
+
+  *roll = atan2f(2.0f*(w*x + y*z), 1.0f - 2.0f*(x*x + y*y)) * rad_to_deg;
+
+  // Clamped because rounding can push the argument just outside asin's domain
+  // at the poles, where pitch is +/-90 degrees.
+  float s = 2.0f*(w*y - z*x);
+  if (s > 1.0f) s = 1.0f;
+  if (s < -1.0f) s = -1.0f;
+  *pitch = asinf(s) * rad_to_deg;
+
+  *yaw = atan2f(2.0f*(w*z + x*y), 1.0f - 2.0f*(y*y + z*z)) * rad_to_deg;
 }
 
-static uint8_t i2c_read_u8(uint8_t addr7, uint8_t reg) {
-  uint8_t v = 0;
-  (void)i2c_reg_read(addr7, reg, &v, 1);
-  return v;
-}
+// ---------- status screen ----------
+// Redrawing only writes the framebuffer; display_service() pushes changed pages
+// to the panel one at a time from the main loop, so nothing here blocks.
+//
+// The font is uppercase-only, so all text is written that way.
+// How long a LAP snapshot stays on screen before live updates resume.
+#define LAP_FREEZE_MS 1000u
 
-// ---------- SH1106: command/data ----------
-static HAL_StatusTypeDef sh1106_cmd(uint8_t cmd) {
-  uint8_t pkt[2] = {0x00, cmd}; // 0x00 = control byte for command
-  return HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)(OLED_ADDR_7B << 1), pkt, sizeof(pkt), 100);
-}
+// lap_marker labels the frame as a held snapshot. Freezing only suspends
+// redrawing - the filter keeps stepping every tick throughout, so the values
+// shown are a sample of a running estimate, not a paused one.
+static void render_screen(bool lap_marker) {
+  char line[DISPLAY_COLS + 1];
+  const app_state_t state = app_state_get();
 
-static HAL_StatusTypeDef sh1106_data(const uint8_t *data, uint16_t len) {
-  // 0x40 = control byte for data; send in chunks
-  uint8_t buf[1 + 32];
-  buf[0] = 0x40;
-
-  while (len) {
-    uint16_t chunk = (len > 32) ? 32 : len;
-    memcpy(&buf[1], data, chunk);
-    HAL_StatusTypeDef st = HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)(OLED_ADDR_7B << 1), buf, 1 + chunk, 200);
-    if (st != HAL_OK) return st;
-    data += chunk;
-    len  -= chunk;
-  }
-  return HAL_OK;
-}
-
-static void sh1106_init(void) {
-  // Minimal SH1106 init (works for typical 128x64 SH1106 modules)
-  HAL_Delay(50);
-
-  sh1106_cmd(0xAE); // display off
-  sh1106_cmd(0xD5); sh1106_cmd(0x80); // clock
-  sh1106_cmd(0xA8); sh1106_cmd(0x3F); // multiplex 1/64
-  sh1106_cmd(0xD3); sh1106_cmd(0x00); // display offset
-  sh1106_cmd(0x40); // start line = 0
-  sh1106_cmd(0xAD); sh1106_cmd(0x8B); // DC-DC on (common on SH1106 boards)
-  sh1106_cmd(0xA1); // segment remap
-  sh1106_cmd(0xC8); // COM scan direction
-  sh1106_cmd(0xDA); sh1106_cmd(0x12); // COM pins
-  sh1106_cmd(0x81); sh1106_cmd(0x7F); // contrast
-  sh1106_cmd(0xD9); sh1106_cmd(0x22); // precharge
-  sh1106_cmd(0xDB); sh1106_cmd(0x20); // VCOMH
-  sh1106_cmd(0xA4); // resume RAM display
-  sh1106_cmd(0xA6); // normal display
-  sh1106_cmd(0xAF); // display on
-}
-
-static void sh1106_fill(uint8_t color /*0x00 black, 0xFF white*/) {
-  uint8_t line[SH1106_WIDTH];
-  memset(line, color, sizeof(line));
-
-  for (uint8_t page = 0; page < SH1106_PAGES; page++) {
-    sh1106_cmd((uint8_t)(0xB0 | page)); // set page address
-    // set column address with offset
-    uint8_t col = SH1106_COL_OFF;
-    sh1106_cmd((uint8_t)(0x00 | (col & 0x0F)));        // lower nibble
-    sh1106_cmd((uint8_t)(0x10 | ((col >> 4) & 0x0F))); // upper nibble
-    sh1106_data(line, sizeof(line));
-  }
-}
-
-// ---------- BNO055 Euler read (degrees) ----------
-static bool bno055_read_euler_deg(float *heading, float *roll, float *pitch) {
-  // Euler registers: H_LSB at 0x1A, 6 bytes total. Units: 1/16 degree.
-  uint8_t buf[6];
-  if (i2c_reg_read(BNO055_ADDR_7B, 0x1A, buf, 6) != HAL_OK) return false;
-
-  int16_t h = (int16_t)((buf[1] << 8) | buf[0]);
-  int16_t r = (int16_t)((buf[3] << 8) | buf[2]);
-  int16_t p = (int16_t)((buf[5] << 8) | buf[4]);
-
-  *heading = (float)h / 16.0f;
-  *roll    = (float)r / 16.0f;
-  *pitch   = (float)p / 16.0f;
-  return true;
-}
-
-// ---------- BNO055 debug/status ----------
-static void bno055_debug_print(void) {
-  uint8_t opr      = i2c_read_u8(BNO055_ADDR_7B, 0x3D); // OPR_MODE
-  uint8_t pwr      = i2c_read_u8(BNO055_ADDR_7B, 0x3E); // PWR_MODE
-  uint8_t page     = i2c_read_u8(BNO055_ADDR_7B, 0x07); // PAGE_ID
-  uint8_t sys_stat = i2c_read_u8(BNO055_ADDR_7B, 0x39); // SYS_STAT
-  uint8_t sys_err  = i2c_read_u8(BNO055_ADDR_7B, 0x3A); // SYS_ERR
-  uint8_t cal      = i2c_read_u8(BNO055_ADDR_7B, 0x35); // CALIB_STAT
-  uint8_t unit     = i2c_read_u8(BNO055_ADDR_7B, 0x3B); // UNIT_SEL
-
-  printf("BNO st: opr=0x%02X pwr=0x%02X page=0x%02X sys_stat=0x%02X sys_err=0x%02X cal=0x%02X unit=0x%02X\r\n",
-         opr, pwr, page, sys_stat, sys_err, cal, unit);
-
-  uint8_t e[6] = {0};
-  if (i2c_reg_read(BNO055_ADDR_7B, 0x1A, e, 6) == HAL_OK) {
-    printf("BNO Euler bytes: %02X %02X %02X %02X %02X %02X\r\n",
-           e[0], e[1], e[2], e[3], e[4], e[5]);
+  if (lap_marker) {
+    snprintf(line, sizeof(line), "LAP  %s", app_state_name(state));
+    display_line(0, line);
   } else {
-    printf("BNO Euler bytes: read fail\r\n");
-  }
-}
-
-// ---------- BNO055 robust init (poll ID, reset, config, mode, readback) ----------
-static bool bno055_init_ndof(void)
-{
-  uint8_t id = 0;
-
-  // Poll for chip ID to become valid (don’t fail immediately at boot)
-  for (int i = 0; i < 100; i++) {
-    if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) == HAL_OK && id == 0xA0) break;
-    HAL_Delay(10);
-  }
-  if (id != 0xA0) {
-    printf("BNO055: chip ID not found (got 0x%02X)\r\n", id);
-    return false;
+    display_line(0, app_state_name(state));
   }
 
-  // Soft reset
-  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3F, 0x20); // SYS_TRIGGER: reset
-  HAL_Delay(650);
-
-  // Poll again for chip ID after reset
-  id = 0;
-  for (int i = 0; i < 100; i++) {
-    if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) == HAL_OK && id == 0xA0) break;
-    HAL_Delay(10);
-  }
-  if (id != 0xA0) {
-    printf("BNO055: chip ID after reset not found (got 0x%02X)\r\n", id);
-    return false;
+  if (state == APP_IDLE) {
+    display_line(2, "PRESS CAL TO LEVEL");
+    display_line(3, "");
+    display_line(4, "");
+    display_line(6, "");
+    display_line(7, "");
+    return;
   }
 
-  // Enter config mode
-  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x00);  // OPR_MODE = CONFIG
-  HAL_Delay(30);
+  if (!filter_app_seeded()) {
+    display_line(2, "WAITING FOR SENSORS");
+    return;
+  }
 
-  // Normal power mode
-  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3E, 0x00);  // PWR_MODE = normal
-  HAL_Delay(10);
+  const filter_output_t *f = filter_app_output();
+  float roll, pitch, yaw;
+  quat_to_euler_deg(f->q, &roll, &pitch, &yaw);
 
-  // Page 0
-  (void)i2c_reg_write(BNO055_ADDR_7B, 0x07, 0x00);  // PAGE_ID = 0
-  HAL_Delay(10);
+  // Heading reads more naturally as 0..360 than as the filter's -180..180.
+  float heading = yaw < 0.0f ? yaw + 360.0f : yaw;
 
-  // Optional: use external crystal (comment out if you don’t have it wired)
-  // (void)i2c_reg_write(BNO055_ADDR_7B, 0x3F, 0x80);
-  // HAL_Delay(10);
+  snprintf(line, sizeof(line), "ROLL   %+7.1f", (double)roll);
+  display_line(2, line);
+  snprintf(line, sizeof(line), "PITCH  %+7.1f", (double)pitch);
+  display_line(3, line);
+  snprintf(line, sizeof(line), "HDG     %6.1f", (double)heading);
+  display_line(4, line);
 
-  // Switch to fusion mode NDOF
-  (void)i2c_reg_write(BNO055_ADDR_7B, 0x3D, 0x0C);  // OPR_MODE = NDOF
-  HAL_Delay(50);
+  snprintf(line, sizeof(line), "ALT   %+7.2f M", (double)f->h);
+  display_line(6, line);
 
-  // Readback and report
-  uint8_t opr = i2c_read_u8(BNO055_ADDR_7B, 0x3D);
-  uint8_t sys_err = i2c_read_u8(BNO055_ADDR_7B, 0x3A);
-  printf("BNO055 init: OPR_MODE=0x%02X SYS_ERR=0x%02X\r\n", opr, sys_err);
+  if (state == APP_CALIBRATING) {
+    display_line(7, "LEVELLING");
+  } else {
+    // Both saturate: the exact value past the cap does not tell the user
+    // anything the cap does not, and it keeps the row inside 21 characters.
+    unsigned cpu_ms = (unsigned)(app_cycles_to_us(f->last_cycles) / 1000u);
+    unsigned missed = (unsigned)app_tick_overruns();
+    if (cpu_ms > 99u) cpu_ms = 99u;
+    if (missed > 999u) missed = 999u;
 
-  // If OPR_MODE didn’t stick, you’re not in NDOF, and Euler can stay 0
-  if (opr != 0x0C) return false;
-
-  return true;
-}
-
-// ---------- BMP390 raw read (no compensation) ----------
-static bool bmp390_read_raw(int32_t *temp_raw, int32_t *press_raw) {
-  // Data regs typically start at 0x04: press_xlsb, press_lsb, press_msb, temp_xlsb, temp_lsb, temp_msb
-  // (3 bytes each, 24-bit unsigned). This is RAW; compensation not applied.
-  uint8_t d[6];
-  if (i2c_reg_read(BMP390_ADDR_7B, 0x04, d, 6) != HAL_OK) return false;
-
-  uint32_t p = ((uint32_t)d[2] << 16) | ((uint32_t)d[1] << 8) | d[0];
-  uint32_t t = ((uint32_t)d[5] << 16) | ((uint32_t)d[4] << 8) | d[3];
-
-  *press_raw = (int32_t)p;
-  *temp_raw  = (int32_t)t;
-  return true;
-}
-
-// ---------- Button edge detection ----------
-typedef struct {
-  GPIO_TypeDef *port;
-  uint16_t pin;
-  uint8_t prev; // 0/1
-  const char *name;
-} button_t;
-
-static uint8_t read_btn(GPIO_TypeDef *port, uint16_t pin) {
-  return (HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_SET) ? 1 : 0; // released=1, pressed=0
-}
-
-static bool button_pressed_edge(button_t *b) {
-  uint8_t cur = read_btn(b->port, b->pin);
-  bool pressed = (b->prev == 1 && cur == 0);
-  b->prev = cur;
-  return pressed;
-}
-
-static bool bmp390_init_basic(void)
-{
-  uint8_t id=0;
-  if (i2c_reg_read(BMP390_ADDR_7B, 0x00, &id, 1) != HAL_OK || id != 0x60) return false;
-
-  // Soft reset
-  (void)i2c_reg_write(BMP390_ADDR_7B, 0x7E, 0xB6);
-  HAL_Delay(10);
-
-  // Enable pressure + temperature
-  // PWR_CTRL (0x1B): pattern depends on exact BMP390 register map; this is a common “works on many examples” value.
-  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1B, 0x33);
-  HAL_Delay(5);
-
-  // OSR (0x1C): set modest oversampling
-  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1C, 0x02);
-  // ODR (0x1D): output data rate
-  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1D, 0x03);
-  // CONFIG (0x1F): IIR etc (optional)
-  (void)i2c_reg_write(BMP390_ADDR_7B, 0x1F, 0x00);
-
-  return true;
+    snprintf(line, sizeof(line), "CPU %2u MS  MISS %3u", cpu_ms, missed);
+    display_line(7, line);
+  }
 }
 
 /* USER CODE END 0 */
@@ -354,91 +203,196 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  // --- Optional: quick ID checks ---
-  uint8_t id = 0;
+  display_init();
 
-  if (i2c_reg_read(BNO055_ADDR_7B, 0x00, &id, 1) == HAL_OK) {
-    printf("BNO055 ID: 0x%02X\r\n", id);
-  } else {
-    printf("BNO055 ID read failed\r\n");
-  }
-
-  if (i2c_reg_read(BMP390_ADDR_7B, 0x00, &id, 1) == HAL_OK) {
-    printf("BMP390 ID: 0x%02X\r\n", id);
-  } else {
-    printf("BMP390 ID read failed\r\n");
-  }
-
-  sh1106_init();
-  sh1106_fill(0x00); // start black
+  buttons_init();
+  app_state_init();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  button_t btn_ss  = {BTN_STARTSTOP_GPIO_Port, BTN_STARTSTOP_Pin, 1, "STARTSTOP"};
-  button_t btn_cal = {BTN_CAL_GPIO_Port,      BTN_CAL_Pin,       1, "CAL"};
-  button_t btn_lap = {BTN_LAP_GPIO_Port,      BTN_LAP_Pin,       1, "LAP"};
+  bool sensors_ok = sensors_init();
+  printf("sensors init ok=%u\r\n", (unsigned)sensors_ok);
 
-  // initialize prev states to current (avoid fake edge at boot)
-  btn_ss.prev  = read_btn(btn_ss.port,  btn_ss.pin);
-  btn_cal.prev = read_btn(btn_cal.port, btn_cal.pin);
-  btn_lap.prev = read_btn(btn_lap.port, btn_lap.pin);
+  filter_app_init();
+  printf("STATE %s\r\n", app_state_name(app_state_get()));
+  render_screen(false);
 
-  uint32_t next_oled_toggle_ms = HAL_GetTick() + 1000; // toggle every 1000ms => 0.5Hz flash
-  uint8_t  oled_white = 0;
+  // Started last, so the overrun count reflects the running loop rather than
+  // the ~800 ms of blocking delays in the BNO055 reset sequence above.
+  app_tick_init();
 
-  uint32_t next_print_ms = HAL_GetTick() + 200;  // 5Hz
-  uint32_t next_bno_dbg_ms = HAL_GetTick() + 1000; // 1Hz extra BNO status dump
+  uint32_t last_tick_cycles = app_cycles();
+  bool have_last_tick = false;
 
-  bool bno_ok = bno055_init_ndof();
-  bool bmp_ok = bmp390_init_basic();
+  // Tick interval statistics, reset at the end of each reporting window.
+  uint32_t dt_min_us = 0xFFFFFFFFu;
+  uint32_t dt_max_us = 0;
+  uint32_t ticks_in_window = 0;
 
-  printf("BNO055 init ok=%u\r\n", (unsigned)bno_ok);
-  printf("BMP390 init ok=%u\r\n", (unsigned)bmp_ok);
+  uint32_t next_report_ms = HAL_GetTick() + 500; // 2 Hz
+
+  sensors_t sens = {0};
+
+  // Per-sensor counts of genuinely new samples in the reporting window. These
+  // should converge on each sensor's configured output data rate.
+  uint32_t n_accel = 0, n_gyro = 0, n_mag = 0, n_baro = 0;
+
+  uint32_t ticks_since_render = 0;
+
+  // Integrated gyro angle per axis, in degrees, reset by the LAP button. Turning
+  // the board through a known angle and comparing settles whether the raw counts
+  // are being scaled correctly, which no static reading can tell us.
+  float gyro_angle_deg[3] = {0.0f, 0.0f, 0.0f};
+
+  // Deadline until which the LAP snapshot is held on screen.
+  uint32_t display_freeze_until_ms = 0;
 
   while (1)
   {
-    uint32_t now = HAL_GetTick();
-
-    // ----- OLED flash at 0.5 Hz -----
-    if ((int32_t)(now - next_oled_toggle_ms) >= 0) {
-      oled_white ^= 1;
-      sh1106_fill(oled_white ? 0xFF : 0x00);
-      next_oled_toggle_ms += 1000;
+    if (!app_tick_pending()) {
+      continue;
     }
 
-    // ----- 1 Hz: dump BNO mode/status + raw euler bytes -----
-    if ((int32_t)(now - next_bno_dbg_ms) >= 0) {
-      bno055_debug_print();
-      next_bno_dbg_ms += 1000;
+    uint32_t now_cycles = app_cycles();
+    if (have_last_tick) {
+      uint32_t dt_us = app_cycles_to_us(now_cycles - last_tick_cycles);
+      if (dt_us < dt_min_us) dt_min_us = dt_us;
+      if (dt_us > dt_max_us) dt_max_us = dt_us;
+      ticks_in_window++;
+    }
+    last_tick_cycles = now_cycles;
+    have_last_tick = true;
+
+    // Every device is polled each tick, but each one reports a status that is
+    // true only when it actually produced a new sample. The filter consumes
+    // those statuses directly.
+    sensors_read(&sens);
+    if (sens.gyro.status) {
+      for (int i = 0; i < 3; i++) {
+        gyro_angle_deg[i] += sens.gyro.meas[i] * (57.29578f / (float)APP_TICK_HZ);
+      }
     }
 
-    // ----- 5 Hz status line -----
-    if ((int32_t)(now - next_print_ms) >= 0) {
-      float h=0, r=0, p=0;
-      bool ok_bno = bno055_read_euler_deg(&h, &r, &p);
+    if (sens.accel.status) n_accel++;
+    if (sens.gyro.status) n_gyro++;
+    if (sens.mag.status) n_mag++;
+    if (sens.baro.status) n_baro++;
 
-      int32_t traw=0, praw=0;
-      bool ok_bmp = bmp390_read_raw(&traw, &praw);
+    // IDLE leaves the filter untouched. CALIBRATING runs filter_init to level
+    // the attitude and capture the reference pressure, RUNNING runs filter_loop.
+    if (app_state_get() != APP_IDLE) {
+      filter_app_step(&sens, app_tick_time_s(), app_state_filter_active());
+    }
 
-      uint8_t ss  = read_btn(btn_ss.port,  btn_ss.pin);
-      uint8_t cal = read_btn(btn_cal.port, btn_cal.pin);
-      uint8_t lap = read_btn(btn_lap.port, btn_lap.pin);
+    buttons_poll();
 
-      // One line, readable headings (not CSV)
-      // Note: BMP390 values are RAW until you implement compensation.
-      printf(
-        "t=%lums | BNO055(h=%.2f r=%.2f p=%.2f ok=%u) | BMP390(rawT=%ld rawP=%ld ok=%u) | BTN(SS=%u CAL=%u LAP=%u) | OLED=%s\r\n",
-        (unsigned long)now,
-        (double)h, (double)r, (double)p, (unsigned)ok_bno,
-        (long)traw, (long)praw, (unsigned)ok_bmp,
-        (unsigned)ss, (unsigned)cal, (unsigned)lap,
-        oled_white ? "WHITE" : "BLACK"
-      );
+    if (app_state_update()) {
+      // Stopping discards the estimate, so the next calibration starts clean
+      // rather than continuing from a state the user has abandoned.
+      if (app_state_get() == APP_IDLE) {
+        filter_app_reset();
+      }
+      if (app_state_get() == APP_RUNNING) {
+        filter_app_clear_cost();
+      }
+      printf("STATE %s\r\n", app_state_name(app_state_get()));
+      render_screen(false);
+    }
 
-      next_print_ms += 200;
+    if (buttons_pressed(BTN_LAP)) {
+      gyro_angle_deg[0] = gyro_angle_deg[1] = gyro_angle_deg[2] = 0.0f;
+      printf("LAP t=%lums state=%s\r\n",
+             (unsigned long)HAL_GetTick(), app_state_name(app_state_get()));
+
+      // Capture the state as it stands and hold it on screen. The filter is
+      // untouched by this: it keeps stepping every tick, and only the redraw
+      // is suspended, so the snapshot ages rather than the estimate stalling.
+      render_screen(true);
+      display_freeze_until_ms = HAL_GetTick() + LAP_FREEZE_MS;
+    }
+
+    // Live redraw at 5 Hz, unless a LAP snapshot is being held. display_service
+    // runs either way, so the held frame still finishes reaching the panel.
+    if (++ticks_since_render >= APP_TICK_HZ / 5u) {
+      ticks_since_render = 0;
+      if ((int32_t)(HAL_GetTick() - display_freeze_until_ms) >= 0) {
+        render_screen(false);
+      }
+    }
+    display_service();
+
+    if ((int32_t)(HAL_GetTick() - next_report_ms) >= 0) {
+      // Magnitudes are the quickest check that the units are right: at rest
+      // |accel| should be ~9.81 m/s^2 and |mag| should be tens of microtesla.
+      float a_norm = vec3_norm(sens.accel.meas);
+      float m_norm = vec3_norm(sens.mag.meas);
+
+      // Sample counts are doubled into per-second rates: the window is 500 ms.
+      printf("%-11s | tick(n=%lu dt=%lu..%lu us over=%lu)"
+             " | a[%+6.2f %+6.2f %+6.2f]=%5.2f"
+             " | g[%+6.3f %+6.3f %+6.3f]"
+             " | m[%+7.1f %+7.1f %+7.1f]=%5.1f"
+             " | baro=%9.1f Pa"
+             " | gyro_int[%+7.1f %+7.1f %+7.1f] deg"
+             " | rate(a=%lu g=%lu m=%lu b=%lu Hz) | faults=%lu | BTN(%u%u%u)\r\n",
+             app_state_name(app_state_get()),
+             (unsigned long)ticks_in_window,
+             (unsigned long)(ticks_in_window ? dt_min_us : 0),
+             (unsigned long)dt_max_us,
+             (unsigned long)app_tick_overruns(),
+             (double)sens.accel.meas[0], (double)sens.accel.meas[1],
+             (double)sens.accel.meas[2], (double)a_norm,
+             (double)sens.gyro.meas[0], (double)sens.gyro.meas[1],
+             (double)sens.gyro.meas[2],
+             (double)sens.mag.meas[0], (double)sens.mag.meas[1],
+             (double)sens.mag.meas[2], (double)m_norm,
+             (double)sens.baro.meas,
+             (double)gyro_angle_deg[0], (double)gyro_angle_deg[1],
+             (double)gyro_angle_deg[2],
+             (unsigned long)(n_accel * 2), (unsigned long)(n_gyro * 2),
+             (unsigned long)(n_mag * 2), (unsigned long)(n_baro * 2),
+             sensors_fault_count(),
+             (unsigned)buttons_held(BTN_START_STOP),
+             (unsigned)buttons_held(BTN_CAL),
+             (unsigned)buttons_held(BTN_LAP));
+
+      if (app_state_get() != APP_IDLE && filter_app_seeded()) {
+        const filter_output_t *f = filter_app_output();
+        float roll, pitch, yaw;
+        quat_to_euler_deg(f->q, &roll, &pitch, &yaw);
+
+        printf("            > filter rpy[%+7.2f %+7.2f %+7.2f] deg"
+               " | bias[%+7.4f %+7.4f %+7.4f] rad/s"
+               " | a_z=%+6.2f v_z=%+6.2f h=%+7.2f"
+               " | |P|=%9.3e | dt=%.4f\r\n",
+               (double)roll, (double)pitch, (double)yaw,
+               (double)f->bias[0], (double)f->bias[1], (double)f->bias[2],
+               (double)f->a_z, (double)f->v_z, (double)f->h,
+               (double)f->P_frobenius, (double)f->dt);
+
+        // Mean and worst cost of filter_entry, split by which measurement
+        // updates ran. base = dynamics + accel only; the others add the
+        // magnetometer and barometer updates on their slower cycles.
+        printf("            > cost us  base=%lu/%lu  +mag=%lu/%lu"
+               "  +baro=%lu/%lu  +both=%lu/%lu  (mean/max)\r\n",
+               (unsigned long)app_cycles_to_us(filter_app_mean_cycles(FILTER_COST_BASE)),
+               (unsigned long)app_cycles_to_us(filter_app_max_cycles(FILTER_COST_BASE)),
+               (unsigned long)app_cycles_to_us(filter_app_mean_cycles(FILTER_COST_MAG)),
+               (unsigned long)app_cycles_to_us(filter_app_max_cycles(FILTER_COST_MAG)),
+               (unsigned long)app_cycles_to_us(filter_app_mean_cycles(FILTER_COST_BARO)),
+               (unsigned long)app_cycles_to_us(filter_app_max_cycles(FILTER_COST_BARO)),
+               (unsigned long)app_cycles_to_us(filter_app_mean_cycles(FILTER_COST_BOTH)),
+               (unsigned long)app_cycles_to_us(filter_app_max_cycles(FILTER_COST_BOTH)));
+      }
+
+      n_accel = n_gyro = n_mag = n_baro = 0;
+      dt_min_us = 0xFFFFFFFFu;
+      dt_max_us = 0;
+      ticks_in_window = 0;
+      next_report_ms += 500;
     }
 
     /* USER CODE END WHILE */
@@ -507,7 +461,7 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 1 */
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x40B285C2;
+  hi2c1.Init.Timing = 0x30422838;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -550,7 +504,7 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 1 */
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 921600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -598,13 +552,13 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : PA10 */
   GPIO_InitStruct.Pin = GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB3 PB5 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */

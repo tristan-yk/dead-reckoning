@@ -1,0 +1,5 @@
+../Core/Src/buttons.c:34:16:read_level	2
+../Core/Src/buttons.c:39:6:buttons_init	2
+../Core/Src/buttons.c:52:6:buttons_poll	7
+../Core/Src/buttons.c:76:6:buttons_pressed	2
+../Core/Src/buttons.c:86:6:buttons_held	2

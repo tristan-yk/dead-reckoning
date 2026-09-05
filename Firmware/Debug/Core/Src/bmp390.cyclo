@@ -1,0 +1,7 @@
+../Core/Src/bmp390.c:52:17:u16	1
+../Core/Src/bmp390.c:57:16:s16	1
+../Core/Src/bmp390.c:62:13:read_calibration	2
+../Core/Src/bmp390.c:93:15:compensate_temperature	1
+../Core/Src/bmp390.c:101:15:compensate_pressure	1
+../Core/Src/bmp390.c:121:6:bmp390_init	4
+../Core/Src/bmp390.c:147:6:bmp390_read	4

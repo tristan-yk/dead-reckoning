@@ -1,0 +1,5 @@
+../Core/Src/bno055.c:91:13:wait_for_chip_id	16	static
+../Core/Src/bno055.c:103:16:le16	16	static
+../Core/Src/bno055.c:108:6:bno055_init	48	static
+../Core/Src/bno055.c:186:13:block_changed	24	static
+../Core/Src/bno055.c:196:6:bno055_read	48	static

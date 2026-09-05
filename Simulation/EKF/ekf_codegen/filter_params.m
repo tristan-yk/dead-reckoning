@@ -7,8 +7,8 @@ P0 = blkdiag(1e-4*eye(4), ...      % attitude, ~1-4 deg
              1e-4,        ...      % v_z, ~0.01 m/s (static)
              1e-2         );       % h, ~0.1 m
 
-a_fast = 0.001;
-a_slow = 0.005;
+a_fast = 0.01;
+a_slow = 0.04;
 
 
 % dynamics
@@ -22,4 +22,4 @@ R_mag = (3 * pi / 180)^2; % 3 degrees RMS
 R_baro = 4;    % 2 Pa RMS
 
 
-save("filter_params.mat");
+save(fullfile(fileparts(mfilename('fullpath')), 'filter_params.mat'));

@@ -22,7 +22,9 @@ static const struct_T r = {
     0.0027415567780803771,
     0.01,
     0.04,
-    1.0,
+    0.1,
+    -0.16474860941275274,
+    10.0,
     0.0001,
     0.001};
 
@@ -3095,8 +3097,8 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
   if (!is_init) {
     float R_bn[9];
     float q[4];
+    float b_a_tmp;
     float cp;
-    float sp;
     float tr;
     tr = mem->sens_filt.baro;
     if (sens_in->accel.status) {
@@ -3150,19 +3152,29 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
     for (b_i = 0; b_i < 10; b_i++) {
       x[b_i] = 0.0F;
     }
+    double b;
+    double c_b;
     float theta[3];
     tr = b_norm(mem->sens_filt.accel);
-    sp = (-mem->sens_filt.accel[0]) / tr;
-    w[0] = sp;
-    cp = sp * mem->sens_filt.mag[0];
-    sp = (-mem->sens_filt.accel[1]) / tr;
-    w[1] = sp;
-    cp += sp * mem->sens_filt.mag[1];
-    sp = (-mem->sens_filt.accel[2]) / tr;
-    cp += sp * mem->sens_filt.mag[2];
+    b_a_tmp = (-mem->sens_filt.accel[0]) / tr;
+    w[0] = b_a_tmp;
+    cp = b_a_tmp * mem->sens_filt.mag[0];
+    b_a_tmp = (-mem->sens_filt.accel[1]) / tr;
+    w[1] = b_a_tmp;
+    cp += b_a_tmp * mem->sens_filt.mag[1];
+    b_a_tmp = (-mem->sens_filt.accel[2]) / tr;
+    cp += b_a_tmp * mem->sens_filt.mag[2];
     theta[0] = mem->sens_filt.mag[0] - (cp * w[0]);
     theta[1] = mem->sens_filt.mag[1] - (cp * w[1]);
-    theta[2] = mem->sens_filt.mag[2] - (cp * sp);
+    theta[2] = mem->sens_filt.mag[2] - (cp * b_a_tmp);
+    b = cos(SD->pd->params.mag_declination);
+    c_b = sin(SD->pd->params.mag_declination);
+    tr = ((theta[0] * b_a_tmp) - (w[0] * theta[2])) * ((float)c_b);
+    cp = ((w[0] * theta[1]) - (theta[0] * w[1])) * ((float)c_b);
+    theta[0] = (theta[0] * ((float)b)) -
+               (((w[1] * theta[2]) - (theta[1] * b_a_tmp)) * ((float)c_b));
+    theta[1] = (theta[1] * ((float)b)) - tr;
+    theta[2] = (theta[2] * ((float)b)) - cp;
     tr = b_norm(theta);
     cp = theta[0] / tr;
     theta[0] = cp;
@@ -3171,30 +3183,30 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
     theta[1] = cp;
     R_bn[3] = cp;
     cp = theta[2] / tr;
-    R_bn[1] = (w[1] * cp) - (theta[1] * sp);
-    R_bn[4] = (theta[0] * sp) - (w[0] * cp);
+    R_bn[1] = (w[1] * cp) - (theta[1] * b_a_tmp);
+    R_bn[4] = (theta[0] * b_a_tmp) - (w[0] * cp);
     R_bn[7] = (w[0] * theta[1]) - (theta[0] * w[1]);
-    tr = (R_bn[0] + R_bn[4]) + sp;
+    tr = (R_bn[0] + R_bn[4]) + b_a_tmp;
     if (tr > 0.0F) {
       tr = sqrtf(tr + 1.0F) * 2.0F;
       q[0] = 0.25F * tr;
       q[1] = (w[1] - R_bn[7]) / tr;
       q[2] = (cp - w[0]) / tr;
       q[3] = (R_bn[1] - R_bn[3]) / tr;
-    } else if ((R_bn[0] > R_bn[4]) && (R_bn[0] > sp)) {
-      tr = sqrtf(((R_bn[0] + 1.0F) - R_bn[4]) - sp) * 2.0F;
+    } else if ((R_bn[0] > R_bn[4]) && (R_bn[0] > b_a_tmp)) {
+      tr = sqrtf(((R_bn[0] + 1.0F) - R_bn[4]) - b_a_tmp) * 2.0F;
       q[0] = (w[1] - R_bn[7]) / tr;
       q[1] = 0.25F * tr;
       q[2] = (R_bn[1] + R_bn[3]) / tr;
       q[3] = (w[0] + cp) / tr;
-    } else if (R_bn[4] > sp) {
-      tr = sqrtf(((R_bn[4] + 1.0F) - R_bn[0]) - sp) * 2.0F;
+    } else if (R_bn[4] > b_a_tmp) {
+      tr = sqrtf(((R_bn[4] + 1.0F) - R_bn[0]) - b_a_tmp) * 2.0F;
       q[0] = (cp - w[0]) / tr;
       q[1] = (R_bn[1] + R_bn[3]) / tr;
       q[2] = 0.25F * tr;
       q[3] = (w[1] + R_bn[7]) / tr;
     } else {
-      tr = sqrtf(((sp + 1.0F) - R_bn[0]) - R_bn[4]) * 2.0F;
+      tr = sqrtf(((b_a_tmp + 1.0F) - R_bn[0]) - R_bn[4]) * 2.0F;
       q[0] = (R_bn[1] - R_bn[3]) / tr;
       q[1] = (w[0] + cp) / tr;
       q[2] = (w[1] + R_bn[7]) / tr;
@@ -3242,8 +3254,8 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
     int H_tmp;
     if (sens_in->gyro.status) {
       double b_v[7];
-      double e_a;
-      double f_a;
+      double b;
+      double c_b;
       float c_a[16];
       float fv1[16];
       float K_tmp;
@@ -3276,44 +3288,41 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         sp = sinf(cp);
         cp = cosf(cp);
         dq[0] = cp;
-        d_R = theta[0] / tr;
-        theta[0] = d_R;
-        dq[1] = d_R * sp;
-        d_R = theta[1] / tr;
-        theta[1] = d_R;
-        dq[2] = d_R * sp;
-        d_R = theta[2] / tr;
-        theta[2] = d_R;
-        dq[3] = d_R * sp;
+        b_a_tmp = theta[0] / tr;
+        theta[0] = b_a_tmp;
+        dq[1] = b_a_tmp * sp;
+        b_a_tmp = theta[1] / tr;
+        theta[1] = b_a_tmp;
+        dq[2] = b_a_tmp * sp;
+        b_a_tmp = theta[2] / tr;
+        theta[2] = b_a_tmp;
+        dq[3] = b_a_tmp * sp;
         for (b_i = 0; b_i < 3; b_i++) {
           R_bn[3 * b_i] = theta[0] * theta[b_i];
           R_bn[(3 * b_i) + 1] = theta[1] * theta[b_i];
-          R_bn[(3 * b_i) + 2] = d_R * theta[b_i];
+          R_bn[(3 * b_i) + 2] = b_a_tmp * theta[b_i];
         }
-        b_a_tmp = -0.5F * sp;
-        c_a_tmp = sp / tr;
+        a_tmp = -0.5F * sp;
+        d_R = sp / tr;
         for (b_i = 0; b_i < 9; b_i++) {
           e_I[b_i] = 0;
         }
         tr = 0.5F * cp;
         e_I[0] = 1;
-        Psi[0] = b_a_tmp * theta[0];
+        Psi[0] = a_tmp * theta[0];
         e_I[4] = 1;
-        Psi[4] = b_a_tmp * theta[1];
+        Psi[4] = a_tmp * theta[1];
         e_I[8] = 1;
-        Psi[8] = b_a_tmp * d_R;
+        Psi[8] = a_tmp * b_a_tmp;
         for (b_i = 0; b_i < 3; b_i++) {
           cp = R_bn[3 * b_i];
-          Psi[(4 * b_i) + 1] =
-              (c_a_tmp * (((float)e_I[3 * b_i]) - cp)) + (tr * cp);
+          Psi[(4 * b_i) + 1] = (d_R * (((float)e_I[3 * b_i]) - cp)) + (tr * cp);
           F_tmp = (3 * b_i) + 1;
           cp = R_bn[F_tmp];
-          Psi[(4 * b_i) + 2] =
-              (c_a_tmp * (((float)e_I[F_tmp]) - cp)) + (tr * cp);
+          Psi[(4 * b_i) + 2] = (d_R * (((float)e_I[F_tmp]) - cp)) + (tr * cp);
           F_tmp = (3 * b_i) + 2;
           cp = R_bn[F_tmp];
-          Psi[(4 * b_i) + 3] =
-              (c_a_tmp * (((float)e_I[F_tmp]) - cp)) + (tr * cp);
+          Psi[(4 * b_i) + 3] = (d_R * (((float)e_I[F_tmp]) - cp)) + (tr * cp);
         }
       }
       tr = x[0];
@@ -3337,29 +3346,29 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
       }
       (void)memset(&F[0], 0, 100U * (sizeof(float)));
       tr = 0.5F * dt;
-      c_a_tmp = tr * 0.0F;
-      c_a[0] = c_a_tmp;
-      b_a_tmp = tr * (-w[0]);
-      c_a[4] = b_a_tmp;
+      b_a_tmp = tr * 0.0F;
+      c_a[0] = b_a_tmp;
+      a_tmp = tr * (-w[0]);
+      c_a[4] = a_tmp;
       sp = tr * (-w[1]);
       c_a[8] = sp;
       d = tr * (-b_f);
       c_a[12] = d;
-      a_tmp = tr * w[0];
-      c_a[1] = a_tmp;
-      c_a[5] = c_a_tmp;
+      c_a_tmp = tr * w[0];
+      c_a[1] = c_a_tmp;
+      c_a[5] = b_a_tmp;
       d_R = tr * b_f;
       c_a[9] = d_R;
       c_a[13] = sp;
       cp = tr * w[1];
       c_a[2] = cp;
       c_a[6] = d;
-      c_a[10] = c_a_tmp;
-      c_a[14] = a_tmp;
+      c_a[10] = b_a_tmp;
+      c_a[14] = c_a_tmp;
       c_a[3] = d_R;
       c_a[7] = cp;
-      c_a[11] = b_a_tmp;
-      c_a[15] = c_a_tmp;
+      c_a[11] = a_tmp;
+      c_a[15] = b_a_tmp;
       expm(c_a, fv1);
       for (b_i = 0; b_i < 4; b_i++) {
         F[10 * b_i] = fv1[4 * b_i];
@@ -3369,14 +3378,14 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
       }
       tr = (-dt) * q[0];
       c_a[0] = tr;
-      d_R = (-dt) * (-q[1]);
-      c_a[4] = d_R;
-      sp = (-dt) * (-q[2]);
-      c_a[8] = sp;
+      sp = (-dt) * (-q[1]);
+      c_a[4] = sp;
+      d_R = (-dt) * (-q[2]);
+      c_a[8] = d_R;
       cp = (-dt) * (-q[3]);
       c_a[12] = cp;
-      c_a_tmp = (-dt) * q[1];
-      c_a[1] = c_a_tmp;
+      b_a_tmp = (-dt) * q[1];
+      c_a[1] = b_a_tmp;
       c_a[5] = tr;
       c_a[9] = cp;
       cp = (-dt) * q[2];
@@ -3385,25 +3394,25 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
       cp = (-dt) * q[3];
       c_a[6] = cp;
       c_a[10] = tr;
-      c_a[14] = d_R;
+      c_a[14] = sp;
       c_a[3] = cp;
-      c_a[7] = sp;
-      c_a[11] = c_a_tmp;
+      c_a[7] = d_R;
+      c_a[11] = b_a_tmp;
       c_a[15] = tr;
       for (b_i = 0; b_i < 3; b_i++) {
         F_tmp = 10 * (b_i + 4);
         cp = 0.0F;
         tr = 0.0F;
         sp = 0.0F;
-        c_a_tmp = 0.0F;
+        d_R = 0.0F;
         for (c_i = 0; c_i < 4; c_i++) {
-          d_R = Psi[c_i + (4 * b_i)];
-          cp += c_a[4 * c_i] * d_R;
-          tr += c_a[(4 * c_i) + 1] * d_R;
-          sp += c_a[(4 * c_i) + 2] * d_R;
-          c_a_tmp += c_a[(4 * c_i) + 3] * d_R;
+          b_a_tmp = Psi[c_i + (4 * b_i)];
+          cp += c_a[4 * c_i] * b_a_tmp;
+          tr += c_a[(4 * c_i) + 1] * b_a_tmp;
+          sp += c_a[(4 * c_i) + 2] * b_a_tmp;
+          d_R += c_a[(4 * c_i) + 3] * b_a_tmp;
         }
-        F[F_tmp + 3] = c_a_tmp;
+        F[F_tmp + 3] = d_R;
         F[F_tmp + 2] = sp;
         F[F_tmp + 1] = tr;
         F[F_tmp] = cp;
@@ -3431,8 +3440,8 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
       F[99] = 1.0F;
       (void)memset(&b_G[0], 0, 70U * (sizeof(float)));
       b_G[67] = 1.0F;
-      e_a = SD->pd->b_params.sg * SD->pd->b_params.sg;
-      f_a = SD->pd->b_params.sbg * SD->pd->b_params.sbg;
+      b = SD->pd->b_params.sg * SD->pd->b_params.sg;
+      c_b = SD->pd->b_params.sbg * SD->pd->b_params.sbg;
       for (b_i = 0; b_i < 3; b_i++) {
         F_tmp = 10 * (b_i + 4);
         b_G[10 * b_i] = F[F_tmp];
@@ -3443,11 +3452,11 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         b_G[F_tmp + 4] = R_bn[3 * b_i];
         b_G[F_tmp + 5] = R_bn[(3 * b_i) + 1];
         b_G[F_tmp + 6] = R_bn[(3 * b_i) + 2];
-        b_v[b_i] = e_a;
-        b_v[b_i + 3] = f_a;
+        b_v[b_i] = b;
+        b_v[b_i + 3] = c_b;
       }
-      e_a = SD->pd->b_params.sa * SD->pd->b_params.sa;
-      b_v[6] = e_a;
+      b = SD->pd->b_params.sa * SD->pd->b_params.sa;
+      b_v[6] = b;
       (void)memset(&Qc[0], 0, 49U * (sizeof(double)));
       for (b_i = 0; b_i < 7; b_i++) {
         Qc[b_i + (7 * b_i)] = b_v[b_i];
@@ -3476,18 +3485,18 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         b_Q[b_i] *= dt;
       }
       tr = rt_powf_snf(dt, 3.0F);
-      b_Q[77] = ((float)e_a) * dt;
-      cp = ((float)e_a) * (K_tmp / 2.0F);
+      b_Q[77] = ((float)b) * dt;
+      cp = ((float)b) * (K_tmp / 2.0F);
       b_Q[87] = cp;
-      sp = ((float)e_a) * (tr / 6.0F);
+      sp = ((float)b) * (tr / 6.0F);
       b_Q[97] = sp;
       b_Q[78] = cp;
-      b_Q[88] = ((float)e_a) * (tr / 3.0F);
-      tr = ((float)e_a) * (rt_powf_snf(dt, 4.0F) / 8.0F);
+      b_Q[88] = ((float)b) * (tr / 3.0F);
+      tr = ((float)b) * (rt_powf_snf(dt, 4.0F) / 8.0F);
       b_Q[98] = tr;
       b_Q[79] = sp;
       b_Q[89] = tr;
-      b_Q[99] = ((float)e_a) * (rt_powf_snf(dt, 5.0F) / 20.0F);
+      b_Q[99] = ((float)b) * (rt_powf_snf(dt, 5.0F) / 20.0F);
       for (b_i = 0; b_i < 4; b_i++) {
         b_Q[10 * b_i] += fv2[4 * b_i];
         F_tmp = (10 * b_i) + 1;
@@ -3593,24 +3602,32 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         tr = x[b_i + 1];
         sp = -0.0F * tr;
         H_tmp = 3 * (b_i + 1);
-        c_a_tmp = w[b_i];
-        d_H[H_tmp] = ((sp + (b_a_tmp * ((float)iv[3 * b_i]))) +
-                      ((2.0F * x[1]) * c_a_tmp)) +
-                     b_a[3 * b_i];
+        d_R = w[b_i];
+        d_H[H_tmp] =
+            ((sp + (b_a_tmp * ((float)iv[3 * b_i]))) + ((2.0F * x[1]) * d_R)) +
+            b_a[3 * b_i];
         b_H_tmp = (3 * b_i) + 1;
-        d_H[H_tmp + 1] = ((sp + (b_a_tmp * ((float)iv[b_H_tmp]))) +
-                          ((2.0F * x[2]) * c_a_tmp)) +
-                         b_a[b_H_tmp];
+        d_H[H_tmp + 1] =
+            ((sp + (b_a_tmp * ((float)iv[b_H_tmp]))) + ((2.0F * x[2]) * d_R)) +
+            b_a[b_H_tmp];
         d_H[H_tmp + 2] =
             ((((-2.0F * w[2]) * tr) + (b_a_tmp * ((float)iv[F_tmp]))) +
              ((2.0F * x[3]) * w[b_i])) +
             cp;
         d_H[b_i + 21] = -R_bn[b_i + 6];
       }
-      tr = fabsf(b_norm(sens_in->accel.meas) - a_tmp) / 0.5F;
-      tr *= tr;
+      tr = fabsf(b_norm(sens_in->accel.meas) - a_tmp);
+      cp = tr / 0.5F;
+      cp *= cp;
       for (b_i = 0; b_i < 9; b_i++) {
-        c_R[b_i] = ((float)SD->pd->c_params.R_accel[b_i]) * (tr + 1.0F);
+        c_R[b_i] = ((float)SD->pd->c_params.R_accel[b_i]) * (cp + 1.0F);
+      }
+      if (tr > (((float)SD->pd->c_params.accel_gate) * a_tmp)) {
+        for (b_i = 0; b_i < 4; b_i++) {
+          d_H[3 * b_i] = 0.0F;
+          d_H[(3 * b_i) + 1] = 0.0F;
+          d_H[(3 * b_i) + 2] = 0.0F;
+        }
       }
       for (b_i = 0; b_i < 3; b_i++) {
         for (c_i = 0; c_i < 10; c_i++) {
@@ -3762,14 +3779,14 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         c_R[b_i] = ((cp * ((float)iv[b_i])) + (2.0F * c_R[b_i])) + b_a[b_i];
       }
       (void)memset(&w[0], 0, 3U * (sizeof(float)));
-      a_tmp = w[0];
+      c_a_tmp = w[0];
       b_f = w[1];
       for (b_i = 0; b_i < 3; b_i++) {
         cp = sens_in->mag.meas[b_i];
-        a_tmp += c_R[3 * b_i] * cp;
+        c_a_tmp += c_R[3 * b_i] * cp;
         b_f += c_R[(3 * b_i) + 1] * cp;
       }
-      d = (a_tmp * a_tmp) + (b_f * b_f);
+      d = (c_a_tmp * c_a_tmp) + (b_f * b_f);
       for (b_i = 0; b_i < 12; b_i++) {
         Psi[b_i] = 0.0F;
       }
@@ -3780,38 +3797,37 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
       cp = tr * sens_in->mag.meas[1];
       Psi[1] = cp + (2.0F * ((sens_in->mag.meas[0] * x[3]) -
                              (x[1] * sens_in->mag.meas[2])));
-      c_a_tmp = tr * sens_in->mag.meas[2];
-      Psi[2] = c_a_tmp + (2.0F * ((x[1] * sens_in->mag.meas[1]) -
+      b_a_tmp = tr * sens_in->mag.meas[2];
+      Psi[2] = b_a_tmp + (2.0F * ((x[1] * sens_in->mag.meas[1]) -
                                   (sens_in->mag.meas[0] * x[2])));
-      b_a_tmp =
-          2.0F *
-          (((sens_in->mag.meas[0] * x[1]) + (sens_in->mag.meas[1] * x[2])) +
-           (sens_in->mag.meas[2] * x[3]));
-      d_R = tr * 0.0F;
-      b_a[0] = d_R;
+      d_R = 2.0F *
+            (((sens_in->mag.meas[0] * x[1]) + (sens_in->mag.meas[1] * x[2])) +
+             (sens_in->mag.meas[2] * x[3]));
+      a_tmp = tr * 0.0F;
+      b_a[0] = a_tmp;
       b_a[3] = tr * (-sens_in->mag.meas[2]);
       b_a[6] = cp;
-      b_a[1] = c_a_tmp;
-      b_a[4] = d_R;
+      b_a[1] = b_a_tmp;
+      b_a[4] = a_tmp;
       b_a[7] = tr * (-sens_in->mag.meas[0]);
       b_a[2] = tr * (-sens_in->mag.meas[1]);
       b_a[5] = sp;
-      b_a[8] = d_R;
+      b_a[8] = a_tmp;
       for (b_i = 0; b_i < 3; b_i++) {
         cp = x[b_i + 1];
         H_tmp = 3 * (b_i + 1);
         Psi[H_tmp] = ((((-2.0F * sens_in->mag.meas[0]) * cp) +
-                       (b_a_tmp * ((float)iv[3 * b_i]))) +
+                       (d_R * ((float)iv[3 * b_i]))) +
                       ((2.0F * x[1]) * sens_in->mag.meas[b_i])) -
                      b_a[3 * b_i];
         F_tmp = (3 * b_i) + 1;
         Psi[H_tmp + 1] = ((((-2.0F * sens_in->mag.meas[1]) * cp) +
-                           (b_a_tmp * ((float)iv[F_tmp]))) +
+                           (d_R * ((float)iv[F_tmp]))) +
                           ((2.0F * x[2]) * sens_in->mag.meas[b_i])) -
                          b_a[F_tmp];
         F_tmp = (3 * b_i) + 2;
         Psi[H_tmp + 2] = ((((-2.0F * sens_in->mag.meas[2]) * cp) +
-                           (b_a_tmp * ((float)iv[F_tmp]))) +
+                           (d_R * ((float)iv[F_tmp]))) +
                           ((2.0F * x[3]) * sens_in->mag.meas[b_i])) -
                          b_a[F_tmp];
       }
@@ -3819,7 +3835,7 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
         c_H[b_i] = 0.0F;
       }
       cp = (-b_f) / d;
-      tr = a_tmp / d;
+      tr = c_a_tmp / d;
       for (b_i = 0; b_i < 4; b_i++) {
         c_H[b_i] = ((cp * Psi[3 * b_i]) + (tr * Psi[(3 * b_i) + 1])) +
                    (0.0F * Psi[(3 * b_i) + 2]);
@@ -3829,8 +3845,8 @@ void filter_entry(filter_entryStackData *SD, float x[10], float b_P[100],
                (sens_in->mag.meas[1] * sens_in->mag.meas[1])) +
               (sens_in->mag.meas[2] * sens_in->mag.meas[2]))) /
             d;
-      tr = b_atan2(b_f, a_tmp);
-      sp = b_atan2(sinf(-tr), cosf(-tr));
+      tr = ((float)SD->pd->d_params.mag_declination) - b_atan2(b_f, c_a_tmp);
+      sp = b_atan2(sinf(tr), cosf(tr));
       (void)memset(&c_K[0], 0, 10U * (sizeof(float)));
       cp = 0.0F;
       for (b_i = 0; b_i < 10; b_i++) {

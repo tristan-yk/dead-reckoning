@@ -12,7 +12,11 @@
 
 dt   = single(0.01);                        % 100 Hz base tick
 g    = single(9.81);
-mref = single([0.1864; 0; 0.4855]);         % Gauss, ~52 uT at 69 deg inclination
+% IGRF-14 at the plant's coordinates (43.4643 N, 80.5204 W, 2025), converted
+% from nT to Gauss. The y term is what carries the -9.44 deg declination; the
+% previous value had y = 0, a zero-declination field, which no longer matches
+% what ekf_innov_mag now corrects for.
+mref = single([0.187794; -0.031222; 0.496105]);   % Gauss, 53.1 uT at 69 deg dip
 p0   = single(101325);
 
 x = single([1; 0; 0; 0;  0; 0; 0;  0; 0; 0]);   % [q(4) b(3) a_z v_z h]

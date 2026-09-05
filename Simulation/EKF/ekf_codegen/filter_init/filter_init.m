@@ -24,7 +24,7 @@ function [x, P, mem] = filter_init(x, P, mem, dt, sens_in)
     mem.sens_filt.baro = init_lowpass(baro, baro_filt, alpha_slow);
     
     x = zeros(10, 1, 'like', x);
-    x(1:4) = init_orientation(mem.sens_filt.accel, mem.sens_filt.mag);
+    x(1:4) = init_orientation(mem.sens_filt.accel, mem.sens_filt.mag, params.mag_declination);
     x(5:7) = mem.sens_filt.gyro;
 
     P = cast(params.P0, 'like', x);

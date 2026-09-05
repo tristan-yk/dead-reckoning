@@ -28,6 +28,10 @@ function [x, P] = ekf_innov_accel(x, P, accel, g_magnitude)
     dev   = abs(norm(accel) - g_magnitude);
     R = R * (1 + (dev/0.5)^2);
 
+    if dev > params.accel_gate * g_magnitude
+        H(:,1:4) = 0;
+    end
+
     y = accel - z;
     S = H * P * H' + R;
     K = P * H' / S;

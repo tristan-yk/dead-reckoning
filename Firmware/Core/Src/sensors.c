@@ -52,6 +52,7 @@ void sensors_read(sensors_t *out)
   float temperature_c = 0.0f;
   if (bmp390_read(&pressure_pa, &temperature_c)) {
     out->baro.meas = pressure_pa;
+    out->baro_temperature_c = temperature_c;
     out->baro.status = true;
   } else {
     out->baro.status = false;

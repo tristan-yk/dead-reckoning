@@ -40,6 +40,12 @@ typedef struct {
   sensor3_t gyro;  /* rad/s      */
   sensor3_t mag;   /* microtesla */
   sensor1_t baro;  /* pascals    */
+
+  /* Barometer die temperature, updated whenever baro.status is true. Not a
+   * filter input; it is here because pressure is temperature-compensated and
+   * self-heating shows up as apparent altitude drift, so the two need to be
+   * looked at together. */
+  float baro_temperature_c;
 } sensors_t;
 
 bool sensors_init(void);

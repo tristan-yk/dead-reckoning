@@ -55,6 +55,8 @@ typedef struct {
   double R_mag;
   double a_fast;
   double a_slow;
+  double accel_gate;
+  double mag_declination;
   double sa;
   double sbg;
   double sg;

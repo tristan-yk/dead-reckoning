@@ -30,10 +30,11 @@ function [x, P] = ekf_innov_mag(x, P, mag)
     H(1:4) = dpsi * dm;
     R = R * (mag' * mag) / d; 
 
-    % nav x = magnetic north
+    D = params.mag_declination;
     psi = atan2(m_nav(2), m_nav(1));
-    
-    y = atan2(sin(-psi), cos(-psi)); % wrap to (-pi, pi]
+
+    e = D - psi;
+    y = atan2(sin(e), cos(e)); % wrap to (-pi, pi]
     S = H * P * H' + R;
     K = P * H' / S;
 

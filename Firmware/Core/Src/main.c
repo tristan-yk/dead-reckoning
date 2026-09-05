@@ -276,6 +276,19 @@ int main(void)
       }
     }
 
+    // One CSV row per barometer sample, 25 Hz. Raw pressure and die temperature
+    // alongside the filter's vertical states, so drift in the measurement can be
+    // told apart from drift in the estimate. About 45 characters at 921600 baud
+    // is under 0.5 ms, well inside the tick.
+    if (sens.baro.status) {
+      const filter_output_t *fo = filter_app_output();
+      printf("R,%lu,%.1f,%.2f,%.3f,%.3f,%.3f\r\n",
+             (unsigned long)HAL_GetTick(),
+             (double)sens.baro.meas,
+             (double)sens.baro_temperature_c,
+             (double)fo->h, (double)fo->v_z, (double)fo->a_z);
+    }
+
     if (sens.accel.status) n_accel++;
     if (sens.gyro.status) n_gyro++;
     if (sens.mag.status) n_mag++;

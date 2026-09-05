@@ -250,6 +250,10 @@ int main(void)
   // Deadline until which the LAP snapshot is held on screen.
   uint32_t display_freeze_until_ms = 0;
 
+  // Cost of emitting one telemetry row, so the stream's share of the tick can
+  // be seen rather than assumed.
+  uint32_t stream_cycles = 0;
+
   while (1)
   {
     if (!app_tick_pending()) {
@@ -276,17 +280,36 @@ int main(void)
       }
     }
 
-    // One CSV row per barometer sample, 25 Hz. Raw pressure and die temperature
-    // alongside the filter's vertical states, so drift in the measurement can be
-    // told apart from drift in the estimate. About 45 characters at 921600 baud
-    // is under 0.5 ms, well inside the tick.
-    if (sens.baro.status) {
+    // Full state and every raw measurement, one row per tick at APP_TICK_HZ.
+    // The dashboard reads these; the human-readable status line below is
+    // separate and distinguishable because it does not start with "S,".
+    //
+    // Raw sensor values are sent rather than anything derived, so the dashboard
+    // can recompute things like the accelerometer gate itself instead of the
+    // firmware duplicating logic that lives in the generated filter.
+    {
+      uint32_t tx_start = app_cycles();
       const filter_output_t *fo = filter_app_output();
-      printf("R,%lu,%.1f,%.2f,%.3f,%.3f,%.3f\r\n",
-             (unsigned long)HAL_GetTick(),
-             (double)sens.baro.meas,
-             (double)sens.baro_temperature_c,
-             (double)fo->h, (double)fo->v_z, (double)fo->a_z);
+      unsigned flags = (sens.accel.status ? 1u : 0u) | (sens.gyro.status ? 2u : 0u) |
+                       (sens.mag.status ? 4u : 0u) | (sens.baro.status ? 8u : 0u);
+
+      printf("S,%lu,%u,%u,"
+             "%.5f,%.5f,%.5f,%.5f,"
+             "%.5f,%.5f,%.5f,"
+             "%.3f,%.3f,%.3f,%.3e,"
+             "%.3f,%.3f,%.3f,"
+             "%.4f,%.4f,%.4f,"
+             "%.1f,%.1f,%.1f,"
+             "%.1f,%.2f\r\n",
+             (unsigned long)HAL_GetTick(), (unsigned)app_state_get(), flags,
+             (double)fo->q[0], (double)fo->q[1], (double)fo->q[2], (double)fo->q[3],
+             (double)fo->bias[0], (double)fo->bias[1], (double)fo->bias[2],
+             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
+             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
+             (double)sens.gyro.meas[0], (double)sens.gyro.meas[1], (double)sens.gyro.meas[2],
+             (double)sens.mag.meas[0], (double)sens.mag.meas[1], (double)sens.mag.meas[2],
+             (double)sens.baro.meas, (double)sens.baro_temperature_c);
+      stream_cycles = app_cycles() - tx_start;
     }
 
     if (sens.accel.status) n_accel++;
@@ -350,7 +373,7 @@ int main(void)
              " | m[%+7.1f %+7.1f %+7.1f]=%5.1f"
              " | baro=%9.1f Pa"
              " | gyro_int[%+7.1f %+7.1f %+7.1f] deg"
-             " | rate(a=%lu g=%lu m=%lu b=%lu Hz) | faults=%lu | BTN(%u%u%u)\r\n",
+             " | rate(a=%lu g=%lu m=%lu b=%lu Hz) | tx=%lu us | faults=%lu | BTN(%u%u%u)\r\n",
              app_state_name(app_state_get()),
              (unsigned long)ticks_in_window,
              (unsigned long)(ticks_in_window ? dt_min_us : 0),
@@ -367,6 +390,7 @@ int main(void)
              (double)gyro_angle_deg[2],
              (unsigned long)(n_accel * 2), (unsigned long)(n_gyro * 2),
              (unsigned long)(n_mag * 2), (unsigned long)(n_baro * 2),
+             (unsigned long)app_cycles_to_us(stream_cycles),
              sensors_fault_count(),
              (unsigned)buttons_held(BTN_START_STOP),
              (unsigned)buttons_held(BTN_CAL),

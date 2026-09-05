@@ -1,0 +1,155 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dead reckoning</title>
+<style>
+  body { margin: 0; background: #14161a; color: #d8dde5;
+         font: 13px ui-monospace, Consolas, monospace; }
+  header { display: flex; gap: 24px; align-items: baseline;
+           padding: 10px 14px; border-bottom: 1px solid #2a2f38; flex-wrap: wrap; }
+  header b { color: #fff; font-size: 15px; }
+  .stat span { color: #8a93a3; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #2a2f38; }
+  .panel { background: #14161a; padding: 8px 10px 4px; }
+  .title { color: #8a93a3; margin-bottom: 4px; }
+  .title i { font-style: normal; margin-left: 10px; }
+  canvas { width: 100%; height: 190px; display: block; }
+  #log { height: 90px; overflow-y: auto; padding: 6px 14px;
+         border-top: 1px solid #2a2f38; color: #8a93a3; white-space: pre; }
+</style>
+
+<header>
+  <b id="state">--</b>
+  <div class="stat"><span>rate</span> <b id="rate">0</b> Hz</div>
+  <div class="stat"><span>alt</span> <b id="alt">0.00</b> m</div>
+  <div class="stat"><span>roll</span> <b id="roll">0.0</b>&deg;</div>
+  <div class="stat"><span>pitch</span> <b id="pitch">0.0</b>&deg;</div>
+  <div class="stat"><span>hdg</span> <b id="hdg">0.0</b>&deg;</div>
+  <div class="stat"><span>|a|</span> <b id="amag">0.00</b></div>
+  <div class="stat"><span>gate</span> <b id="gate">-</b></div>
+</header>
+
+<div class="grid">
+  <div class="panel"><div class="title">altitude &mdash;
+      <i style="color:#5fd3a0">filter h</i><i style="color:#c8813f">raw baro</i></div>
+    <canvas id="c_alt"></canvas></div>
+  <div class="panel"><div class="title">attitude &mdash;
+      <i style="color:#5fd3a0">roll</i><i style="color:#c8813f">pitch</i><i style="color:#7aa5e8">heading</i></div>
+    <canvas id="c_att"></canvas></div>
+  <div class="panel"><div class="title">vertical &mdash;
+      <i style="color:#5fd3a0">v_z m/s</i><i style="color:#c8813f">a_z m/s&sup2;</i></div>
+    <canvas id="c_vert"></canvas></div>
+  <div class="panel"><div class="title">accel magnitude &mdash;
+      <i style="color:#5fd3a0">|a|</i><i style="color:#8a93a3">shaded = inside gate, accel trusted for attitude</i></div>
+    <canvas id="c_amag"></canvas></div>
+</div>
+<div id="log"></div>
+
+<script>
+const N = 1500;                 // samples held, 15 s at 100 Hz
+const G = 9.80665;
+const GATE = 0.1;               // must match accel_gate in filter_params.m
+const PA_PER_M = 11.98;         // dp/dh near sea level
+
+const buf = [];
+let baroRef = null, lastState = null, count = 0, rate = 0;
+
+setInterval(() => { rate = count; count = 0; el('rate').textContent = rate; }, 1000);
+function el(id) { return document.getElementById(id); }
+
+function quatToEuler(w, x, y, z) {
+  const roll  = Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y));
+  let s = 2*(w*y - z*x); s = Math.max(-1, Math.min(1, s));
+  const pitch = Math.asin(s);
+  const yaw   = Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z));
+  const d = 180/Math.PI;
+  return [roll*d, pitch*d, (yaw*d + 360) % 360];
+}
+
+new EventSource('/stream').onmessage = (e) => {
+  for (const s of JSON.parse(e.data)) {
+    if (s.log !== undefined) { addLog(s.log); continue; }
+    count++;
+
+    // The filter captures its reference pressure during calibration, so reset
+    // the raw-baro reference whenever a new run starts. Without this the two
+    // altitude traces would be offset by whatever the pressure was at boot.
+    if (s.state === 2 && lastState !== 2) baroRef = s.baro;
+    lastState = s.state;
+    if (baroRef === null) baroRef = s.baro;
+
+    const [roll, pitch, hdg] = quatToEuler(s.q0, s.q1, s.q2, s.q3);
+    const amag = Math.hypot(s.ax, s.ay, s.az);
+    buf.push({
+      h: s.h, baroAlt: -(s.baro - baroRef) / PA_PER_M,
+      roll, pitch, hdg, v_z: s.v_z, a_z: s.a_z, amag,
+    });
+    if (buf.length > N) buf.shift();
+
+    el('state').textContent = ['IDLE', 'CALIBRATING', 'RUNNING'][s.state] || '?';
+    el('alt').textContent = s.h.toFixed(2);
+    el('roll').textContent = roll.toFixed(1);
+    el('pitch').textContent = pitch.toFixed(1);
+    el('hdg').textContent = hdg.toFixed(1);
+    el('amag').textContent = amag.toFixed(2);
+    const inGate = Math.abs(amag - G) < GATE * G;
+    el('gate').textContent = inGate ? 'open' : 'BLIND';
+    el('gate').style.color = inGate ? '#5fd3a0' : '#e07a5f';
+  }
+};
+
+function addLog(line) {
+  const d = el('log');
+  d.textContent += line + '\n';
+  if (d.textContent.length > 4000) d.textContent = d.textContent.slice(-3000);
+  d.scrollTop = d.scrollHeight;
+}
+
+function draw(canvas, series, opts = {}) {
+  const dpr = devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w*dpr) { canvas.width = w*dpr; canvas.height = h*dpr; }
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (buf.length < 2) return;
+
+  let lo = Infinity, hi = -Infinity;
+  for (const s of series) for (const p of buf) {
+    const v = s.get(p);
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (opts.band) { lo = Math.min(lo, opts.band[0]); hi = Math.max(hi, opts.band[1]); }
+  if (!isFinite(lo)) return;
+  const pad = (hi - lo) * 0.15 || 0.5;
+  lo -= pad; hi += pad;
+  const Y = v => h - (v - lo) / (hi - lo) * h;
+  const X = i => i / (N - 1) * w;
+
+  if (opts.band) {                       // gate band, drawn behind the traces
+    g.fillStyle = '#5fd3a018';
+    g.fillRect(0, Y(opts.band[1]), w, Y(opts.band[0]) - Y(opts.band[1]));
+  }
+  g.strokeStyle = '#2a2f38'; g.lineWidth = 1;   // zero line
+  if (lo < 0 && hi > 0) { g.beginPath(); g.moveTo(0, Y(0)); g.lineTo(w, Y(0)); g.stroke(); }
+
+  for (const s of series) {
+    g.strokeStyle = s.color; g.lineWidth = 1.4; g.beginPath();
+    buf.forEach((p, i) => i ? g.lineTo(X(i), Y(s.get(p))) : g.moveTo(X(i), Y(s.get(p))));
+    g.stroke();
+  }
+  g.fillStyle = '#8a93a3';
+  g.fillText(hi.toFixed(2), 3, 10);
+  g.fillText(lo.toFixed(2), 3, h - 3);
+}
+
+function frame() {
+  draw(el('c_alt'),  [{get: p => p.h, color: '#5fd3a0'}, {get: p => p.baroAlt, color: '#c8813f'}]);
+  draw(el('c_att'),  [{get: p => p.roll, color: '#5fd3a0'}, {get: p => p.pitch, color: '#c8813f'},
+                      {get: p => p.hdg, color: '#7aa5e8'}]);
+  draw(el('c_vert'), [{get: p => p.v_z, color: '#5fd3a0'}, {get: p => p.a_z, color: '#c8813f'}]);
+  draw(el('c_amag'), [{get: p => p.amag, color: '#5fd3a0'}], {band: [G*(1-GATE), G*(1+GATE)]});
+  requestAnimationFrame(frame);
+}
+frame();
+</script>

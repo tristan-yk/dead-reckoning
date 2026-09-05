@@ -2,7 +2,7 @@ function [x, P] = ekf_innov_mag(x, P, mag)
 
     persistent params
     if isempty(params)
-        params = load("filter_params.mat");
+        params = coder.load("filter_params.mat");
     end
 
     R = params.R_mag;

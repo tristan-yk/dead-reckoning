@@ -2,7 +2,7 @@ function [x, P, mem] = filter_init(x, P, mem, dt, sens_in)
 
     persistent params
     if isempty(params)
-        params = load("filter_params.mat");
+        params = coder.load("filter_params.mat");
     end
 
     accel = sens_in.accel;

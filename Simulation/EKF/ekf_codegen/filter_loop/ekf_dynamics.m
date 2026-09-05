@@ -4,7 +4,7 @@ function [x, P] = ekf_dynamics(dt, x, P, gyro_meas)
     persistent params
 
     if isempty(params)
-        params = load("filter_params.mat");
+        params = coder.load("filter_params.mat");
     end
 
     sg = params.sg;

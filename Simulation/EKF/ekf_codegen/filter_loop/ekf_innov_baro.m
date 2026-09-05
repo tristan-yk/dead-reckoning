@@ -2,7 +2,7 @@ function [x, P] = ekf_innov_baro(x, P, baro, p0)
 
     persistent params
     if isempty(params)
-        params = load("filter_params.mat");
+        params = coder.load("filter_params.mat");
     end
 
     R = params.R_baro;

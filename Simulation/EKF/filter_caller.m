@@ -1,5 +1,11 @@
 function [attitude, altitude, P_norm] = filter_caller(time, accel, gyro, mag, baro)
+    
     idle_time = 10;
+
+    R_bs = [0 -1 0; -1 0 0; 0 0 -1];
+    accel.meas = R_bs * accel.meas;
+    gyro.meas  = R_bs * gyro.meas;
+    mag.meas   = R_bs * mag.meas;
 
     persistent state P t_old mem
 

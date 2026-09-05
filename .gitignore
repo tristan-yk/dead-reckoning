@@ -58,6 +58,23 @@ simulink_cache/
 
 # MATLAB code generation
 codegen/
+# ...but Simulation/Codegen is a hand-authored MATLAB Coder project, not generated
+# output. It is only caught by the rule above because Windows matches ignore
+# patterns case-insensitively. Un-ignore the folder; its nested codegen/ output
+# directory is still covered by the rule above.
+!Simulation/Codegen/
+
+# The generated firmware sources for filter_entry ARE tracked, so firmware can be
+# built without running MATLAB Coder. Everything else Coder emits (build-info
+# .mat files, the HTML report, the MEX interface glue, the example main) stays
+# out. Re-include the directory chain first: git will not descend into an
+# ignored directory, so a negation deeper down would never be reached.
+!Simulation/Codegen/codegen/
+!Simulation/Codegen/codegen/lib/
+!Simulation/Codegen/codegen/lib/filter_entry/
+Simulation/Codegen/codegen/lib/filter_entry/*
+!Simulation/Codegen/codegen/lib/filter_entry/*.c
+!Simulation/Codegen/codegen/lib/filter_entry/*.h
 *_ert_rtw/
 *_grt_rtw/
 *_rtw/

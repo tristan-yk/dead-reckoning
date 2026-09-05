@@ -2,7 +2,7 @@ function [x, P] = ekf_innov_accel(x, P, accel, g_magnitude)
     
     persistent params
     if isempty(params)
-        params = load("filter_params.mat");
+        params = coder.load("filter_params.mat");
     end
 
     R = params.R_accel;
@@ -11,7 +11,7 @@ function [x, P] = ekf_innov_accel(x, P, accel, g_magnitude)
     qw = q(1);
     qv = q(2:4);
 
-    a_nav = [0; 0; -x(8) - g_magnitude];
+    a_nav = [0; 0; x(8) - g_magnitude];
     R_bn = q2dcm(q)';
 
     z = R_bn * a_nav;
@@ -23,7 +23,7 @@ function [x, P] = ekf_innov_accel(x, P, accel, g_magnitude)
     H = zeros(3, 10);
     H(:,1)   = 2 * qw * a_nav - 2 * cross(qv, a_nav);
     H(:,2:4) = -2 * a_nav * qv' + 2 * (qv' * a_nav) * eye(3) + 2 * qv *a_nav' + 2 * qw * a_nav_cross;
-    H(:,8)   = -R_bn(:,3);
+    H(:,8)   = R_bn(:,3);
 
     dev   = abs(norm(accel) - g_magnitude);
     R = R * (1 + (dev/0.5)^2);

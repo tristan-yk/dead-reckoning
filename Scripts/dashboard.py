@@ -116,7 +116,9 @@ class Handler(BaseHTTPRequestHandler):
                     payload = json.dumps(batch)
                     self.wfile.write(("data: %s\n\n" % payload).encode())
                     self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            except (ConnectionError, OSError):
+                # Windows raises ConnectionAbortedError when a tab closes; the
+                # base classes cover that and the posix equivalents.
                 pass
             finally:
                 with subscribers_lock:

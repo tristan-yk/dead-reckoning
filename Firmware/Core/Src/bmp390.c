@@ -30,11 +30,16 @@
 
 /* PWR_CTRL: pressure and temperature enabled, normal (continuous) mode. */
 #define PWR_CTRL_VALUE 0x33
-/* OSR: pressure oversampled x8, temperature x1. Conversion takes about 19 ms,
- * which fits inside the 40 ms sample period below. */
-#define OSR_VALUE 0x03
-/* ODR: 25 Hz, matching the rate the filter consumes barometer measurements. */
-#define ODR_VALUE 0x03
+/* OSR: pressure oversampled x32, temperature x2. Oversampling happens inside
+ * the sensor, before a sample is emitted, so unlike the IIR below it lowers the
+ * noise without correlating consecutive samples - which is what the EKF needs.
+ * Conversion time is 234 + (392 + 2^osr_p * 2020) + (163 + 2^osr_t * 2020) us,
+ * here 69.5 ms, so it no longer fits a 40 ms period and the ODR drops to match.
+ * Measured noise: 1.71 Pa at x8, 0.86 Pa expected here. Halving the rate while
+ * halving sigma still roughly doubles the information reaching the filter. */
+#define OSR_VALUE 0x0D
+/* ODR: 12.5 Hz, the fastest rate the conversion above fits inside (80 ms). */
+#define ODR_VALUE 0x04
 /* CONFIG: IIR filter disabled. The EKF assumes measurement noise is white, and
  * an on-chip IIR would correlate consecutive samples and break that. */
 #define CONFIG_VALUE 0x00

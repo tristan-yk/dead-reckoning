@@ -1,7 +1,7 @@
-../Core/Src/bmp390.c:52:17:u16	16	static
-../Core/Src/bmp390.c:57:16:s16	16	static
-../Core/Src/bmp390.c:62:13:read_calibration	32	static
-../Core/Src/bmp390.c:93:15:compensate_temperature	32	static
-../Core/Src/bmp390.c:101:15:compensate_pressure	72	static
-../Core/Src/bmp390.c:121:6:bmp390_init	16	static
-../Core/Src/bmp390.c:147:6:bmp390_read	48	static
+../Core/Src/bmp390.c:57:17:u16	16	static
+../Core/Src/bmp390.c:62:16:s16	16	static
+../Core/Src/bmp390.c:67:13:read_calibration	32	static
+../Core/Src/bmp390.c:98:15:compensate_temperature	32	static
+../Core/Src/bmp390.c:106:15:compensate_pressure	72	static
+../Core/Src/bmp390.c:126:6:bmp390_init	16	static
+../Core/Src/bmp390.c:152:6:bmp390_read	48	static

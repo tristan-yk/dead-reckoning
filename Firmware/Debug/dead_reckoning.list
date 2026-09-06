@@ -37,11 +37,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  16 .debug_macro  00021e49  00000000  00000000  0003af23  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   000256c0  00000000  00000000  0005cd6c  2**0
+ 17 .debug_line   000256c1  00000000  00000000  0005cd6c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000cc927  00000000  00000000  0008242c  2**0
+ 18 .debug_str    000cc927  00000000  00000000  0008242d  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000043  00000000  00000000  0014ed53  2**0
+ 19 .comment      00000043  00000000  00000000  0014ed54  2**0
                   CONTENTS, READONLY
  20 .debug_frame  00007d70  00000000  00000000  0014ed98  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
@@ -2447,12 +2447,12 @@ bool bmp390_init(void)
   }
 
   (void)i2c_write(BMP390_ADDR, REG_OSR, OSR_VALUE);
- 800188a:	2203      	movs	r2, #3
+ 800188a:	220d      	movs	r2, #13
  800188c:	211c      	movs	r1, #28
  800188e:	2077      	movs	r0, #119	@ 0x77
  8001890:	f008 f906 	bl	8009aa0 <i2c_write>
   (void)i2c_write(BMP390_ADDR, REG_ODR, ODR_VALUE);
- 8001894:	2203      	movs	r2, #3
+ 8001894:	2204      	movs	r2, #4
  8001896:	211d      	movs	r1, #29
  8001898:	2077      	movs	r0, #119	@ 0x77
  800189a:	f008 f901 	bl	8009aa0 <i2c_write>
@@ -18181,7 +18181,7 @@ void filter_entry_initialize(filter_entryStackData *SD)
  8009a00:	47ae147b 	.word	0x47ae147b
  8009a04:	3f847ae1 	.word	0x3f847ae1
  8009a08:	00000000 	.word	0x00000000
- 8009a0c:	40100000 	.word	0x40100000
+ 8009a0c:	3ff80000 	.word	0x3ff80000
  8009a10:	1676a3b0 	.word	0x1676a3b0
  8009a14:	3f667576 	.word	0x3f667576
  8009a18:	47ae147b 	.word	0x47ae147b

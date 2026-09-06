@@ -21,4 +21,3 @@ The firmware runs a 100 Hz tick and spends about 1.5 ms of each 10 ms period ins
 - Firmware - STM32 application and device drivers
 - Electrical - KiCad schematic, PCB, and fabrication outputs for the shield
 - Scripts - build, flash, and source sync helpers, plus the live dashboard
-- Docs - images

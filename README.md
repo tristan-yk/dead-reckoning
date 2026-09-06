@@ -1,11 +1,11 @@
-# Dead Reckoning
+# Inertial State Estimation
 
 <p align="center">
   <img src="Docs/images/device.jpg" width="30%" alt="Assembled shield running on the Nucleo">
   <img src="Docs/images/dashboard.png" width="68%" alt="Live dashboard showing orientation and altitude">
 </p>
 
-**Dead Reckoning** is a strapdown attitude and altitude estimator built around an extended Kalman filter. The filter is written and tested in MATLAB and Simulink against a simulated plant, then generated to single-precision C with MATLAB Coder and run on an STM32G4 Nucleo with a custom sensor shield. It does not estimate horizontal position. Nothing on the board observes it, so the only way to get it would be double-integrating acceleration, and that drifts without bound.
+The Inertial State Estimation project is a strapdown attitude and altitude estimator built around an extended Kalman filter. The filter is written and tested in MATLAB and Simulink against a simulated plant, then generated to single-precision C with MATLAB Coder and run on an STM32G4 Nucleo with a custom sensor shield. It does not estimate horizontal position. Nothing on the board observes it, so the only way to get it would be double-integrating acceleration, and that drifts without bound.
 
 There are ten states: an orientation quaternion, a three-axis gyroscope bias, and a vertical channel of acceleration, velocity and altitude. The gyroscope propagates orientation forward and three measurements correct it. The accelerometer gives a gravity reference for roll and pitch, the magnetometer gives heading once local declination is applied, and the barometer gives altitude through the standard atmosphere model. Gravity is only worth trusting when the device is not accelerating, so accelerometer corrections to attitude get dropped whenever specific force is more than ten percent off *g*. The same sample still drives the vertical acceleration state. All of this is tested first against a Simulink plant with rigid-body motion, sensor noise and bias, and an earth magnetic field model.
 

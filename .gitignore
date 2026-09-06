@@ -137,3 +137,7 @@ desktop.ini
 
 .vscode/
 .idea/
+# Demo video. It is uploaded to GitHub as a comment attachment so the README can
+# embed a player; a copy committed here would only ever be a download link, and
+# git keeps every version of a binary in full.
+Docs/images/*.mp4

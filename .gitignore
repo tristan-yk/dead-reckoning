@@ -141,3 +141,6 @@ desktop.ini
 # embed a player; a copy committed here would only ever be a download link, and
 # git keeps every version of a binary in full.
 Docs/images/*.mp4
+
+# Captured hardware logs, kept locally for offline analysis.
+Logs/

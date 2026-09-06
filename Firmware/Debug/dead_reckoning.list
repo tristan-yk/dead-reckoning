@@ -18869,7 +18869,7 @@ int main(void)
   printf("sensors init ok=%u\r\n", (unsigned)sensors_ok);
  8009fa0:	f897 311b 	ldrb.w	r3, [r7, #283]	@ 0x11b
  8009fa4:	4619      	mov	r1, r3
- 8009fa6:	4878      	ldr	r0, [pc, #480]	@ (800a188 <main+0x220>)
+ 8009fa6:	4896      	ldr	r0, [pc, #600]	@ (800a200 <main+0x298>)
  8009fa8:	f005 fa1a 	bl	800f3e0 <iprintf>
 
   filter_app_init();
@@ -18881,7 +18881,7 @@ int main(void)
  8009fb8:	f7f7 f852 	bl	8001060 <app_state_name>
  8009fbc:	4603      	mov	r3, r0
  8009fbe:	4619      	mov	r1, r3
- 8009fc0:	4872      	ldr	r0, [pc, #456]	@ (800a18c <main+0x224>)
+ 8009fc0:	4890      	ldr	r0, [pc, #576]	@ (800a204 <main+0x29c>)
  8009fc2:	f005 fa0d 	bl	800f3e0 <iprintf>
   render_screen(false);
  8009fc6:	2000      	movs	r0, #0
@@ -19044,7 +19044,7 @@ int main(void)
  800a102:	4413      	add	r3, r2
  800a104:	3b98      	subs	r3, #152	@ 0x98
  800a106:	edd3 7a00 	vldr	s15, [r3]
- 800a10a:	eddf 6a21 	vldr	s13, [pc, #132]	@ 800a190 <main+0x228>
+ 800a10a:	eddf 6a3f 	vldr	s13, [pc, #252]	@ 800a208 <main+0x2a0>
  800a10e:	ee67 7aa6 	vmul.f32	s15, s15, s13
  800a112:	ee77 7a27 	vadd.f32	s15, s14, s15
  800a116:	f8d7 311c 	ldr.w	r3, [r7, #284]	@ 0x11c
@@ -19061,459 +19061,460 @@ int main(void)
  800a134:	f8d7 311c 	ldr.w	r3, [r7, #284]	@ 0x11c
  800a138:	2b02      	cmp	r3, #2
  800a13a:	ddd1      	ble.n	800a0e0 <main+0x178>
-    //
-    // Raw sensor values are sent rather than anything derived, so the dashboard
-    // can recompute things like the accelerometer gate itself instead of the
-    // firmware duplicating logic that lives in the generated filter.
+      }
+    }
+
+    if (sens.accel.status) n_accel++;
+ 800a13c:	f897 30c4 	ldrb.w	r3, [r7, #196]	@ 0xc4
+ 800a140:	2b00      	cmp	r3, #0
+ 800a142:	d004      	beq.n	800a14e <main+0x1e6>
+ 800a144:	f8d7 3134 	ldr.w	r3, [r7, #308]	@ 0x134
+ 800a148:	3301      	adds	r3, #1
+ 800a14a:	f8c7 3134 	str.w	r3, [r7, #308]	@ 0x134
+    if (sens.gyro.status) n_gyro++;
+ 800a14e:	f897 30d4 	ldrb.w	r3, [r7, #212]	@ 0xd4
+ 800a152:	2b00      	cmp	r3, #0
+ 800a154:	d004      	beq.n	800a160 <main+0x1f8>
+ 800a156:	f8d7 3130 	ldr.w	r3, [r7, #304]	@ 0x130
+ 800a15a:	3301      	adds	r3, #1
+ 800a15c:	f8c7 3130 	str.w	r3, [r7, #304]	@ 0x130
+    if (sens.mag.status) n_mag++;
+ 800a160:	f897 30e4 	ldrb.w	r3, [r7, #228]	@ 0xe4
+ 800a164:	2b00      	cmp	r3, #0
+ 800a166:	d004      	beq.n	800a172 <main+0x20a>
+ 800a168:	f8d7 312c 	ldr.w	r3, [r7, #300]	@ 0x12c
+ 800a16c:	3301      	adds	r3, #1
+ 800a16e:	f8c7 312c 	str.w	r3, [r7, #300]	@ 0x12c
+    if (sens.baro.status) n_baro++;
+ 800a172:	f897 30ec 	ldrb.w	r3, [r7, #236]	@ 0xec
+ 800a176:	2b00      	cmp	r3, #0
+ 800a178:	d004      	beq.n	800a184 <main+0x21c>
+ 800a17a:	f8d7 3128 	ldr.w	r3, [r7, #296]	@ 0x128
+ 800a17e:	3301      	adds	r3, #1
+ 800a180:	f8c7 3128 	str.w	r3, [r7, #296]	@ 0x128
+
+    // IDLE leaves the filter untouched. CALIBRATING runs filter_init to level
+    // the attitude and capture the reference pressure, RUNNING runs filter_loop.
+    if (app_state_get() != APP_IDLE) {
+ 800a184:	f7f6 ff60 	bl	8001048 <app_state_get>
+ 800a188:	4603      	mov	r3, r0
+ 800a18a:	2b00      	cmp	r3, #0
+ 800a18c:	d013      	beq.n	800a1b6 <main+0x24e>
+      filter_app_step(&sens, app_tick_time_s(), app_state_filter_active());
+ 800a18e:	f7f7 f83b 	bl	8001208 <app_tick_time_s>
+ 800a192:	eeb0 8a40 	vmov.f32	s16, s0
+ 800a196:	eef0 8a60 	vmov.f32	s17, s1
+ 800a19a:	f7f6 ff85 	bl	80010a8 <app_state_filter_active>
+ 800a19e:	4603      	mov	r3, r0
+ 800a1a0:	461a      	mov	r2, r3
+ 800a1a2:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
+ 800a1a6:	4611      	mov	r1, r2
+ 800a1a8:	eeb0 0a48 	vmov.f32	s0, s16
+ 800a1ac:	eef0 0a68 	vmov.f32	s1, s17
+ 800a1b0:	4618      	mov	r0, r3
+ 800a1b2:	f7f8 f959 	bl	8002468 <filter_app_step>
+    // This runs after filter_app_step, not before, so the state and the
+    // measurements in a row belong to the same tick. Emitting it earlier paired
+    // this tick's sensors with last tick's state, a fixed one-tick skew that is
+    // invisible on the dashboard but would misalign an offline replay.
     {
       uint32_t tx_start = app_cycles();
- 800a13c:	f7f7 f87e 	bl	800123c <app_cycles>
- 800a140:	f8c7 0108 	str.w	r0, [r7, #264]	@ 0x108
+ 800a1b6:	f7f7 f841 	bl	800123c <app_cycles>
+ 800a1ba:	f8c7 0108 	str.w	r0, [r7, #264]	@ 0x108
       const filter_output_t *fo = filter_app_output();
- 800a144:	f7f8 fb46 	bl	80027d4 <filter_app_output>
- 800a148:	f8c7 0104 	str.w	r0, [r7, #260]	@ 0x104
+ 800a1be:	f7f8 fb09 	bl	80027d4 <filter_app_output>
+ 800a1c2:	f8c7 0104 	str.w	r0, [r7, #260]	@ 0x104
       unsigned flags = (sens.accel.status ? 1u : 0u) | (sens.gyro.status ? 2u : 0u) |
- 800a14c:	f897 30c4 	ldrb.w	r3, [r7, #196]	@ 0xc4
- 800a150:	2b00      	cmp	r3, #0
- 800a152:	d001      	beq.n	800a158 <main+0x1f0>
- 800a154:	2201      	movs	r2, #1
- 800a156:	e000      	b.n	800a15a <main+0x1f2>
- 800a158:	2200      	movs	r2, #0
- 800a15a:	f897 30d4 	ldrb.w	r3, [r7, #212]	@ 0xd4
- 800a15e:	2b00      	cmp	r3, #0
- 800a160:	d001      	beq.n	800a166 <main+0x1fe>
- 800a162:	2302      	movs	r3, #2
- 800a164:	e000      	b.n	800a168 <main+0x200>
- 800a166:	2300      	movs	r3, #0
- 800a168:	4313      	orrs	r3, r2
+ 800a1c6:	f897 30c4 	ldrb.w	r3, [r7, #196]	@ 0xc4
+ 800a1ca:	2b00      	cmp	r3, #0
+ 800a1cc:	d001      	beq.n	800a1d2 <main+0x26a>
+ 800a1ce:	2201      	movs	r2, #1
+ 800a1d0:	e000      	b.n	800a1d4 <main+0x26c>
+ 800a1d2:	2200      	movs	r2, #0
+ 800a1d4:	f897 30d4 	ldrb.w	r3, [r7, #212]	@ 0xd4
+ 800a1d8:	2b00      	cmp	r3, #0
+ 800a1da:	d001      	beq.n	800a1e0 <main+0x278>
+ 800a1dc:	2302      	movs	r3, #2
+ 800a1de:	e000      	b.n	800a1e2 <main+0x27a>
+ 800a1e0:	2300      	movs	r3, #0
+ 800a1e2:	4313      	orrs	r3, r2
                        (sens.mag.status ? 4u : 0u) | (sens.baro.status ? 8u : 0u);
- 800a16a:	f897 20e4 	ldrb.w	r2, [r7, #228]	@ 0xe4
- 800a16e:	2a00      	cmp	r2, #0
- 800a170:	d001      	beq.n	800a176 <main+0x20e>
- 800a172:	2204      	movs	r2, #4
- 800a174:	e000      	b.n	800a178 <main+0x210>
- 800a176:	2200      	movs	r2, #0
+ 800a1e4:	f897 20e4 	ldrb.w	r2, [r7, #228]	@ 0xe4
+ 800a1e8:	2a00      	cmp	r2, #0
+ 800a1ea:	d001      	beq.n	800a1f0 <main+0x288>
+ 800a1ec:	2204      	movs	r2, #4
+ 800a1ee:	e000      	b.n	800a1f2 <main+0x28a>
+ 800a1f0:	2200      	movs	r2, #0
       unsigned flags = (sens.accel.status ? 1u : 0u) | (sens.gyro.status ? 2u : 0u) |
- 800a178:	4313      	orrs	r3, r2
+ 800a1f2:	4313      	orrs	r3, r2
                        (sens.mag.status ? 4u : 0u) | (sens.baro.status ? 8u : 0u);
- 800a17a:	f897 20ec 	ldrb.w	r2, [r7, #236]	@ 0xec
- 800a17e:	2a00      	cmp	r2, #0
- 800a180:	d008      	beq.n	800a194 <main+0x22c>
- 800a182:	2208      	movs	r2, #8
- 800a184:	e007      	b.n	800a196 <main+0x22e>
- 800a186:	bf00      	nop
- 800a188:	08014b34 	.word	0x08014b34
- 800a18c:	08014b4c 	.word	0x08014b4c
- 800a190:	3f12ad5d 	.word	0x3f12ad5d
- 800a194:	2200      	movs	r2, #0
+ 800a1f4:	f897 20ec 	ldrb.w	r2, [r7, #236]	@ 0xec
+ 800a1f8:	2a00      	cmp	r2, #0
+ 800a1fa:	d007      	beq.n	800a20c <main+0x2a4>
+ 800a1fc:	2208      	movs	r2, #8
+ 800a1fe:	e006      	b.n	800a20e <main+0x2a6>
+ 800a200:	08014b34 	.word	0x08014b34
+ 800a204:	08014b4c 	.word	0x08014b4c
+ 800a208:	3f12ad5d 	.word	0x3f12ad5d
+ 800a20c:	2200      	movs	r2, #0
       unsigned flags = (sens.accel.status ? 1u : 0u) | (sens.gyro.status ? 2u : 0u) |
- 800a196:	4313      	orrs	r3, r2
- 800a198:	f8c7 3100 	str.w	r3, [r7, #256]	@ 0x100
+ 800a20e:	4313      	orrs	r3, r2
+ 800a210:	f8c7 3100 	str.w	r3, [r7, #256]	@ 0x100
              "%.3f,%.3f,%.3f,%.3e,"
              "%.3f,%.3f,%.3f,"
              "%.4f,%.4f,%.4f,"
              "%.1f,%.1f,%.1f,"
              "%.1f,%.2f\r\n",
              (unsigned long)HAL_GetTick(), (unsigned)app_state_get(), flags,
- 800a19c:	f001 f82e 	bl	800b1fc <HAL_GetTick>
- 800a1a0:	4606      	mov	r6, r0
- 800a1a2:	f7f6 ff51 	bl	8001048 <app_state_get>
- 800a1a6:	4603      	mov	r3, r0
+ 800a214:	f000 fff2 	bl	800b1fc <HAL_GetTick>
+ 800a218:	4606      	mov	r6, r0
+ 800a21a:	f7f6 ff15 	bl	8001048 <app_state_get>
+ 800a21e:	4603      	mov	r3, r0
       printf("S,%lu,%u,%u,"
- 800a1a8:	f8c7 3098 	str.w	r3, [r7, #152]	@ 0x98
+ 800a220:	f8c7 3098 	str.w	r3, [r7, #152]	@ 0x98
              (double)fo->q[0], (double)fo->q[1], (double)fo->q[2], (double)fo->q[3],
- 800a1ac:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a1b0:	681b      	ldr	r3, [r3, #0]
+ 800a224:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a228:	681b      	ldr	r3, [r3, #0]
       printf("S,%lu,%u,%u,"
- 800a1b2:	4618      	mov	r0, r3
- 800a1b4:	f7f6 f9f0 	bl	8000598 <__aeabi_f2d>
- 800a1b8:	e9c7 0124 	strd	r0, r1, [r7, #144]	@ 0x90
+ 800a22a:	4618      	mov	r0, r3
+ 800a22c:	f7f6 f9b4 	bl	8000598 <__aeabi_f2d>
+ 800a230:	e9c7 0124 	strd	r0, r1, [r7, #144]	@ 0x90
              (double)fo->q[0], (double)fo->q[1], (double)fo->q[2], (double)fo->q[3],
- 800a1bc:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a1c0:	685b      	ldr	r3, [r3, #4]
+ 800a234:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a238:	685b      	ldr	r3, [r3, #4]
       printf("S,%lu,%u,%u,"
- 800a1c2:	4618      	mov	r0, r3
- 800a1c4:	f7f6 f9e8 	bl	8000598 <__aeabi_f2d>
- 800a1c8:	e9c7 0122 	strd	r0, r1, [r7, #136]	@ 0x88
+ 800a23a:	4618      	mov	r0, r3
+ 800a23c:	f7f6 f9ac 	bl	8000598 <__aeabi_f2d>
+ 800a240:	e9c7 0122 	strd	r0, r1, [r7, #136]	@ 0x88
              (double)fo->q[0], (double)fo->q[1], (double)fo->q[2], (double)fo->q[3],
- 800a1cc:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a1d0:	689b      	ldr	r3, [r3, #8]
+ 800a244:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a248:	689b      	ldr	r3, [r3, #8]
       printf("S,%lu,%u,%u,"
- 800a1d2:	4618      	mov	r0, r3
- 800a1d4:	f7f6 f9e0 	bl	8000598 <__aeabi_f2d>
- 800a1d8:	e9c7 0120 	strd	r0, r1, [r7, #128]	@ 0x80
+ 800a24a:	4618      	mov	r0, r3
+ 800a24c:	f7f6 f9a4 	bl	8000598 <__aeabi_f2d>
+ 800a250:	e9c7 0120 	strd	r0, r1, [r7, #128]	@ 0x80
              (double)fo->q[0], (double)fo->q[1], (double)fo->q[2], (double)fo->q[3],
- 800a1dc:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a1e0:	68db      	ldr	r3, [r3, #12]
+ 800a254:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a258:	68db      	ldr	r3, [r3, #12]
       printf("S,%lu,%u,%u,"
- 800a1e2:	4618      	mov	r0, r3
- 800a1e4:	f7f6 f9d8 	bl	8000598 <__aeabi_f2d>
- 800a1e8:	e9c7 011e 	strd	r0, r1, [r7, #120]	@ 0x78
+ 800a25a:	4618      	mov	r0, r3
+ 800a25c:	f7f6 f99c 	bl	8000598 <__aeabi_f2d>
+ 800a260:	e9c7 011e 	strd	r0, r1, [r7, #120]	@ 0x78
              (double)fo->bias[0], (double)fo->bias[1], (double)fo->bias[2],
- 800a1ec:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a1f0:	691b      	ldr	r3, [r3, #16]
+ 800a264:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a268:	691b      	ldr	r3, [r3, #16]
       printf("S,%lu,%u,%u,"
- 800a1f2:	4618      	mov	r0, r3
- 800a1f4:	f7f6 f9d0 	bl	8000598 <__aeabi_f2d>
- 800a1f8:	e9c7 011c 	strd	r0, r1, [r7, #112]	@ 0x70
+ 800a26a:	4618      	mov	r0, r3
+ 800a26c:	f7f6 f994 	bl	8000598 <__aeabi_f2d>
+ 800a270:	e9c7 011c 	strd	r0, r1, [r7, #112]	@ 0x70
              (double)fo->bias[0], (double)fo->bias[1], (double)fo->bias[2],
- 800a1fc:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a200:	695b      	ldr	r3, [r3, #20]
+ 800a274:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a278:	695b      	ldr	r3, [r3, #20]
       printf("S,%lu,%u,%u,"
- 800a202:	4618      	mov	r0, r3
- 800a204:	f7f6 f9c8 	bl	8000598 <__aeabi_f2d>
- 800a208:	e9c7 011a 	strd	r0, r1, [r7, #104]	@ 0x68
+ 800a27a:	4618      	mov	r0, r3
+ 800a27c:	f7f6 f98c 	bl	8000598 <__aeabi_f2d>
+ 800a280:	e9c7 011a 	strd	r0, r1, [r7, #104]	@ 0x68
              (double)fo->bias[0], (double)fo->bias[1], (double)fo->bias[2],
- 800a20c:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a210:	699b      	ldr	r3, [r3, #24]
-      printf("S,%lu,%u,%u,"
- 800a212:	4618      	mov	r0, r3
- 800a214:	f7f6 f9c0 	bl	8000598 <__aeabi_f2d>
- 800a218:	e9c7 0118 	strd	r0, r1, [r7, #96]	@ 0x60
-             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
- 800a21c:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a220:	69db      	ldr	r3, [r3, #28]
-      printf("S,%lu,%u,%u,"
- 800a222:	4618      	mov	r0, r3
- 800a224:	f7f6 f9b8 	bl	8000598 <__aeabi_f2d>
- 800a228:	e9c7 0116 	strd	r0, r1, [r7, #88]	@ 0x58
-             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
- 800a22c:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a230:	6a1b      	ldr	r3, [r3, #32]
-      printf("S,%lu,%u,%u,"
- 800a232:	4618      	mov	r0, r3
- 800a234:	f7f6 f9b0 	bl	8000598 <__aeabi_f2d>
- 800a238:	e9c7 0114 	strd	r0, r1, [r7, #80]	@ 0x50
-             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
- 800a23c:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a240:	6a5b      	ldr	r3, [r3, #36]	@ 0x24
-      printf("S,%lu,%u,%u,"
- 800a242:	4618      	mov	r0, r3
- 800a244:	f7f6 f9a8 	bl	8000598 <__aeabi_f2d>
- 800a248:	e9c7 0112 	strd	r0, r1, [r7, #72]	@ 0x48
-             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
- 800a24c:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
- 800a250:	6a9b      	ldr	r3, [r3, #40]	@ 0x28
-      printf("S,%lu,%u,%u,"
- 800a252:	4618      	mov	r0, r3
- 800a254:	f7f6 f9a0 	bl	8000598 <__aeabi_f2d>
- 800a258:	e9c7 0110 	strd	r0, r1, [r7, #64]	@ 0x40
-             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
- 800a25c:	f8d7 30b8 	ldr.w	r3, [r7, #184]	@ 0xb8
-      printf("S,%lu,%u,%u,"
- 800a260:	4618      	mov	r0, r3
- 800a262:	f7f6 f999 	bl	8000598 <__aeabi_f2d>
- 800a266:	e9c7 010e 	strd	r0, r1, [r7, #56]	@ 0x38
-             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
- 800a26a:	f8d7 30bc 	ldr.w	r3, [r7, #188]	@ 0xbc
-      printf("S,%lu,%u,%u,"
- 800a26e:	4618      	mov	r0, r3
- 800a270:	f7f6 f992 	bl	8000598 <__aeabi_f2d>
- 800a274:	e9c7 010c 	strd	r0, r1, [r7, #48]	@ 0x30
-             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
- 800a278:	f8d7 30c0 	ldr.w	r3, [r7, #192]	@ 0xc0
-      printf("S,%lu,%u,%u,"
- 800a27c:	4618      	mov	r0, r3
- 800a27e:	f7f6 f98b 	bl	8000598 <__aeabi_f2d>
- 800a282:	e9c7 010a 	strd	r0, r1, [r7, #40]	@ 0x28
-             (double)sens.gyro.meas[0], (double)sens.gyro.meas[1], (double)sens.gyro.meas[2],
- 800a286:	f8d7 30c8 	ldr.w	r3, [r7, #200]	@ 0xc8
+ 800a284:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a288:	699b      	ldr	r3, [r3, #24]
       printf("S,%lu,%u,%u,"
  800a28a:	4618      	mov	r0, r3
  800a28c:	f7f6 f984 	bl	8000598 <__aeabi_f2d>
- 800a290:	e9c7 0108 	strd	r0, r1, [r7, #32]
+ 800a290:	e9c7 0118 	strd	r0, r1, [r7, #96]	@ 0x60
+             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
+ 800a294:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a298:	69db      	ldr	r3, [r3, #28]
+      printf("S,%lu,%u,%u,"
+ 800a29a:	4618      	mov	r0, r3
+ 800a29c:	f7f6 f97c 	bl	8000598 <__aeabi_f2d>
+ 800a2a0:	e9c7 0116 	strd	r0, r1, [r7, #88]	@ 0x58
+             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
+ 800a2a4:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a2a8:	6a1b      	ldr	r3, [r3, #32]
+      printf("S,%lu,%u,%u,"
+ 800a2aa:	4618      	mov	r0, r3
+ 800a2ac:	f7f6 f974 	bl	8000598 <__aeabi_f2d>
+ 800a2b0:	e9c7 0114 	strd	r0, r1, [r7, #80]	@ 0x50
+             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
+ 800a2b4:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a2b8:	6a5b      	ldr	r3, [r3, #36]	@ 0x24
+      printf("S,%lu,%u,%u,"
+ 800a2ba:	4618      	mov	r0, r3
+ 800a2bc:	f7f6 f96c 	bl	8000598 <__aeabi_f2d>
+ 800a2c0:	e9c7 0112 	strd	r0, r1, [r7, #72]	@ 0x48
+             (double)fo->a_z, (double)fo->v_z, (double)fo->h, (double)fo->P_frobenius,
+ 800a2c4:	f8d7 3104 	ldr.w	r3, [r7, #260]	@ 0x104
+ 800a2c8:	6a9b      	ldr	r3, [r3, #40]	@ 0x28
+      printf("S,%lu,%u,%u,"
+ 800a2ca:	4618      	mov	r0, r3
+ 800a2cc:	f7f6 f964 	bl	8000598 <__aeabi_f2d>
+ 800a2d0:	e9c7 0110 	strd	r0, r1, [r7, #64]	@ 0x40
+             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
+ 800a2d4:	f8d7 30b8 	ldr.w	r3, [r7, #184]	@ 0xb8
+      printf("S,%lu,%u,%u,"
+ 800a2d8:	4618      	mov	r0, r3
+ 800a2da:	f7f6 f95d 	bl	8000598 <__aeabi_f2d>
+ 800a2de:	e9c7 010e 	strd	r0, r1, [r7, #56]	@ 0x38
+             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
+ 800a2e2:	f8d7 30bc 	ldr.w	r3, [r7, #188]	@ 0xbc
+      printf("S,%lu,%u,%u,"
+ 800a2e6:	4618      	mov	r0, r3
+ 800a2e8:	f7f6 f956 	bl	8000598 <__aeabi_f2d>
+ 800a2ec:	e9c7 010c 	strd	r0, r1, [r7, #48]	@ 0x30
+             (double)sens.accel.meas[0], (double)sens.accel.meas[1], (double)sens.accel.meas[2],
+ 800a2f0:	f8d7 30c0 	ldr.w	r3, [r7, #192]	@ 0xc0
+      printf("S,%lu,%u,%u,"
+ 800a2f4:	4618      	mov	r0, r3
+ 800a2f6:	f7f6 f94f 	bl	8000598 <__aeabi_f2d>
+ 800a2fa:	e9c7 010a 	strd	r0, r1, [r7, #40]	@ 0x28
              (double)sens.gyro.meas[0], (double)sens.gyro.meas[1], (double)sens.gyro.meas[2],
- 800a294:	f8d7 30cc 	ldr.w	r3, [r7, #204]	@ 0xcc
+ 800a2fe:	f8d7 30c8 	ldr.w	r3, [r7, #200]	@ 0xc8
       printf("S,%lu,%u,%u,"
- 800a298:	4618      	mov	r0, r3
- 800a29a:	f7f6 f97d 	bl	8000598 <__aeabi_f2d>
- 800a29e:	e9c7 0106 	strd	r0, r1, [r7, #24]
+ 800a302:	4618      	mov	r0, r3
+ 800a304:	f7f6 f948 	bl	8000598 <__aeabi_f2d>
+ 800a308:	e9c7 0108 	strd	r0, r1, [r7, #32]
              (double)sens.gyro.meas[0], (double)sens.gyro.meas[1], (double)sens.gyro.meas[2],
- 800a2a2:	f8d7 30d0 	ldr.w	r3, [r7, #208]	@ 0xd0
+ 800a30c:	f8d7 30cc 	ldr.w	r3, [r7, #204]	@ 0xcc
       printf("S,%lu,%u,%u,"
- 800a2a6:	4618      	mov	r0, r3
- 800a2a8:	f7f6 f976 	bl	8000598 <__aeabi_f2d>
- 800a2ac:	e9c7 0104 	strd	r0, r1, [r7, #16]
+ 800a310:	4618      	mov	r0, r3
+ 800a312:	f7f6 f941 	bl	8000598 <__aeabi_f2d>
+ 800a316:	e9c7 0106 	strd	r0, r1, [r7, #24]
+             (double)sens.gyro.meas[0], (double)sens.gyro.meas[1], (double)sens.gyro.meas[2],
+ 800a31a:	f8d7 30d0 	ldr.w	r3, [r7, #208]	@ 0xd0
+      printf("S,%lu,%u,%u,"
+ 800a31e:	4618      	mov	r0, r3
+ 800a320:	f7f6 f93a 	bl	8000598 <__aeabi_f2d>
+ 800a324:	e9c7 0104 	strd	r0, r1, [r7, #16]
              (double)sens.mag.meas[0], (double)sens.mag.meas[1], (double)sens.mag.meas[2],
- 800a2b0:	f8d7 30d8 	ldr.w	r3, [r7, #216]	@ 0xd8
+ 800a328:	f8d7 30d8 	ldr.w	r3, [r7, #216]	@ 0xd8
       printf("S,%lu,%u,%u,"
- 800a2b4:	4618      	mov	r0, r3
- 800a2b6:	f7f6 f96f 	bl	8000598 <__aeabi_f2d>
- 800a2ba:	e9c7 0102 	strd	r0, r1, [r7, #8]
+ 800a32c:	4618      	mov	r0, r3
+ 800a32e:	f7f6 f933 	bl	8000598 <__aeabi_f2d>
+ 800a332:	e9c7 0102 	strd	r0, r1, [r7, #8]
              (double)sens.mag.meas[0], (double)sens.mag.meas[1], (double)sens.mag.meas[2],
- 800a2be:	f8d7 30dc 	ldr.w	r3, [r7, #220]	@ 0xdc
+ 800a336:	f8d7 30dc 	ldr.w	r3, [r7, #220]	@ 0xdc
       printf("S,%lu,%u,%u,"
- 800a2c2:	4618      	mov	r0, r3
- 800a2c4:	f7f6 f968 	bl	8000598 <__aeabi_f2d>
- 800a2c8:	4682      	mov	sl, r0
- 800a2ca:	468b      	mov	fp, r1
+ 800a33a:	4618      	mov	r0, r3
+ 800a33c:	f7f6 f92c 	bl	8000598 <__aeabi_f2d>
+ 800a340:	4682      	mov	sl, r0
+ 800a342:	468b      	mov	fp, r1
              (double)sens.mag.meas[0], (double)sens.mag.meas[1], (double)sens.mag.meas[2],
- 800a2cc:	f8d7 30e0 	ldr.w	r3, [r7, #224]	@ 0xe0
+ 800a344:	f8d7 30e0 	ldr.w	r3, [r7, #224]	@ 0xe0
       printf("S,%lu,%u,%u,"
- 800a2d0:	4618      	mov	r0, r3
- 800a2d2:	f7f6 f961 	bl	8000598 <__aeabi_f2d>
- 800a2d6:	4680      	mov	r8, r0
- 800a2d8:	4689      	mov	r9, r1
+ 800a348:	4618      	mov	r0, r3
+ 800a34a:	f7f6 f925 	bl	8000598 <__aeabi_f2d>
+ 800a34e:	4680      	mov	r8, r0
+ 800a350:	4689      	mov	r9, r1
              (double)sens.baro.meas, (double)sens.baro_temperature_c);
- 800a2da:	f8d7 30e8 	ldr.w	r3, [r7, #232]	@ 0xe8
+ 800a352:	f8d7 30e8 	ldr.w	r3, [r7, #232]	@ 0xe8
       printf("S,%lu,%u,%u,"
- 800a2de:	4618      	mov	r0, r3
- 800a2e0:	f7f6 f95a 	bl	8000598 <__aeabi_f2d>
- 800a2e4:	4604      	mov	r4, r0
- 800a2e6:	460d      	mov	r5, r1
+ 800a356:	4618      	mov	r0, r3
+ 800a358:	f7f6 f91e 	bl	8000598 <__aeabi_f2d>
+ 800a35c:	4604      	mov	r4, r0
+ 800a35e:	460d      	mov	r5, r1
              (double)sens.baro.meas, (double)sens.baro_temperature_c);
- 800a2e8:	f8d7 30f0 	ldr.w	r3, [r7, #240]	@ 0xf0
+ 800a360:	f8d7 30f0 	ldr.w	r3, [r7, #240]	@ 0xf0
       printf("S,%lu,%u,%u,"
- 800a2ec:	4618      	mov	r0, r3
- 800a2ee:	f7f6 f953 	bl	8000598 <__aeabi_f2d>
- 800a2f2:	4602      	mov	r2, r0
- 800a2f4:	460b      	mov	r3, r1
- 800a2f6:	e9cd 232a 	strd	r2, r3, [sp, #168]	@ 0xa8
- 800a2fa:	e9cd 4528 	strd	r4, r5, [sp, #160]	@ 0xa0
- 800a2fe:	e9cd 8926 	strd	r8, r9, [sp, #152]	@ 0x98
- 800a302:	e9cd ab24 	strd	sl, fp, [sp, #144]	@ 0x90
- 800a306:	ed97 7b02 	vldr	d7, [r7, #8]
- 800a30a:	ed8d 7b22 	vstr	d7, [sp, #136]	@ 0x88
- 800a30e:	ed97 7b04 	vldr	d7, [r7, #16]
- 800a312:	ed8d 7b20 	vstr	d7, [sp, #128]	@ 0x80
- 800a316:	ed97 7b06 	vldr	d7, [r7, #24]
- 800a31a:	ed8d 7b1e 	vstr	d7, [sp, #120]	@ 0x78
- 800a31e:	ed97 7b08 	vldr	d7, [r7, #32]
- 800a322:	ed8d 7b1c 	vstr	d7, [sp, #112]	@ 0x70
- 800a326:	ed97 7b0a 	vldr	d7, [r7, #40]	@ 0x28
- 800a32a:	ed8d 7b1a 	vstr	d7, [sp, #104]	@ 0x68
- 800a32e:	ed97 7b0c 	vldr	d7, [r7, #48]	@ 0x30
- 800a332:	ed8d 7b18 	vstr	d7, [sp, #96]	@ 0x60
- 800a336:	ed97 7b0e 	vldr	d7, [r7, #56]	@ 0x38
- 800a33a:	ed8d 7b16 	vstr	d7, [sp, #88]	@ 0x58
- 800a33e:	ed97 7b10 	vldr	d7, [r7, #64]	@ 0x40
- 800a342:	ed8d 7b14 	vstr	d7, [sp, #80]	@ 0x50
- 800a346:	ed97 7b12 	vldr	d7, [r7, #72]	@ 0x48
- 800a34a:	ed8d 7b12 	vstr	d7, [sp, #72]	@ 0x48
- 800a34e:	ed97 7b14 	vldr	d7, [r7, #80]	@ 0x50
- 800a352:	ed8d 7b10 	vstr	d7, [sp, #64]	@ 0x40
- 800a356:	ed97 7b16 	vldr	d7, [r7, #88]	@ 0x58
- 800a35a:	ed8d 7b0e 	vstr	d7, [sp, #56]	@ 0x38
- 800a35e:	ed97 7b18 	vldr	d7, [r7, #96]	@ 0x60
- 800a362:	ed8d 7b0c 	vstr	d7, [sp, #48]	@ 0x30
- 800a366:	ed97 7b1a 	vldr	d7, [r7, #104]	@ 0x68
- 800a36a:	ed8d 7b0a 	vstr	d7, [sp, #40]	@ 0x28
- 800a36e:	ed97 7b1c 	vldr	d7, [r7, #112]	@ 0x70
- 800a372:	ed8d 7b08 	vstr	d7, [sp, #32]
- 800a376:	ed97 7b1e 	vldr	d7, [r7, #120]	@ 0x78
- 800a37a:	ed8d 7b06 	vstr	d7, [sp, #24]
- 800a37e:	ed97 7b20 	vldr	d7, [r7, #128]	@ 0x80
- 800a382:	ed8d 7b04 	vstr	d7, [sp, #16]
- 800a386:	ed97 7b22 	vldr	d7, [r7, #136]	@ 0x88
- 800a38a:	ed8d 7b02 	vstr	d7, [sp, #8]
- 800a38e:	ed97 7b24 	vldr	d7, [r7, #144]	@ 0x90
- 800a392:	ed8d 7b00 	vstr	d7, [sp]
- 800a396:	f8d7 3100 	ldr.w	r3, [r7, #256]	@ 0x100
- 800a39a:	f8d7 2098 	ldr.w	r2, [r7, #152]	@ 0x98
- 800a39e:	4631      	mov	r1, r6
- 800a3a0:	486b      	ldr	r0, [pc, #428]	@ (800a550 <main+0x5e8>)
- 800a3a2:	f005 f81d 	bl	800f3e0 <iprintf>
+ 800a364:	4618      	mov	r0, r3
+ 800a366:	f7f6 f917 	bl	8000598 <__aeabi_f2d>
+ 800a36a:	4602      	mov	r2, r0
+ 800a36c:	460b      	mov	r3, r1
+ 800a36e:	e9cd 232a 	strd	r2, r3, [sp, #168]	@ 0xa8
+ 800a372:	e9cd 4528 	strd	r4, r5, [sp, #160]	@ 0xa0
+ 800a376:	e9cd 8926 	strd	r8, r9, [sp, #152]	@ 0x98
+ 800a37a:	e9cd ab24 	strd	sl, fp, [sp, #144]	@ 0x90
+ 800a37e:	ed97 7b02 	vldr	d7, [r7, #8]
+ 800a382:	ed8d 7b22 	vstr	d7, [sp, #136]	@ 0x88
+ 800a386:	ed97 7b04 	vldr	d7, [r7, #16]
+ 800a38a:	ed8d 7b20 	vstr	d7, [sp, #128]	@ 0x80
+ 800a38e:	ed97 7b06 	vldr	d7, [r7, #24]
+ 800a392:	ed8d 7b1e 	vstr	d7, [sp, #120]	@ 0x78
+ 800a396:	ed97 7b08 	vldr	d7, [r7, #32]
+ 800a39a:	ed8d 7b1c 	vstr	d7, [sp, #112]	@ 0x70
+ 800a39e:	ed97 7b0a 	vldr	d7, [r7, #40]	@ 0x28
+ 800a3a2:	ed8d 7b1a 	vstr	d7, [sp, #104]	@ 0x68
+ 800a3a6:	ed97 7b0c 	vldr	d7, [r7, #48]	@ 0x30
+ 800a3aa:	ed8d 7b18 	vstr	d7, [sp, #96]	@ 0x60
+ 800a3ae:	ed97 7b0e 	vldr	d7, [r7, #56]	@ 0x38
+ 800a3b2:	ed8d 7b16 	vstr	d7, [sp, #88]	@ 0x58
+ 800a3b6:	ed97 7b10 	vldr	d7, [r7, #64]	@ 0x40
+ 800a3ba:	ed8d 7b14 	vstr	d7, [sp, #80]	@ 0x50
+ 800a3be:	ed97 7b12 	vldr	d7, [r7, #72]	@ 0x48
+ 800a3c2:	ed8d 7b12 	vstr	d7, [sp, #72]	@ 0x48
+ 800a3c6:	ed97 7b14 	vldr	d7, [r7, #80]	@ 0x50
+ 800a3ca:	ed8d 7b10 	vstr	d7, [sp, #64]	@ 0x40
+ 800a3ce:	ed97 7b16 	vldr	d7, [r7, #88]	@ 0x58
+ 800a3d2:	ed8d 7b0e 	vstr	d7, [sp, #56]	@ 0x38
+ 800a3d6:	ed97 7b18 	vldr	d7, [r7, #96]	@ 0x60
+ 800a3da:	ed8d 7b0c 	vstr	d7, [sp, #48]	@ 0x30
+ 800a3de:	ed97 7b1a 	vldr	d7, [r7, #104]	@ 0x68
+ 800a3e2:	ed8d 7b0a 	vstr	d7, [sp, #40]	@ 0x28
+ 800a3e6:	ed97 7b1c 	vldr	d7, [r7, #112]	@ 0x70
+ 800a3ea:	ed8d 7b08 	vstr	d7, [sp, #32]
+ 800a3ee:	ed97 7b1e 	vldr	d7, [r7, #120]	@ 0x78
+ 800a3f2:	ed8d 7b06 	vstr	d7, [sp, #24]
+ 800a3f6:	ed97 7b20 	vldr	d7, [r7, #128]	@ 0x80
+ 800a3fa:	ed8d 7b04 	vstr	d7, [sp, #16]
+ 800a3fe:	ed97 7b22 	vldr	d7, [r7, #136]	@ 0x88
+ 800a402:	ed8d 7b02 	vstr	d7, [sp, #8]
+ 800a406:	ed97 7b24 	vldr	d7, [r7, #144]	@ 0x90
+ 800a40a:	ed8d 7b00 	vstr	d7, [sp]
+ 800a40e:	f8d7 3100 	ldr.w	r3, [r7, #256]	@ 0x100
+ 800a412:	f8d7 2098 	ldr.w	r2, [r7, #152]	@ 0x98
+ 800a416:	4631      	mov	r1, r6
+ 800a418:	484d      	ldr	r0, [pc, #308]	@ (800a550 <main+0x5e8>)
+ 800a41a:	f004 ffe1 	bl	800f3e0 <iprintf>
       stream_cycles = app_cycles() - tx_start;
- 800a3a6:	f7f6 ff49 	bl	800123c <app_cycles>
- 800a3aa:	4602      	mov	r2, r0
- 800a3ac:	f8d7 3108 	ldr.w	r3, [r7, #264]	@ 0x108
- 800a3b0:	1ad3      	subs	r3, r2, r3
- 800a3b2:	f8c7 3114 	str.w	r3, [r7, #276]	@ 0x114
-    }
-
-    if (sens.accel.status) n_accel++;
- 800a3b6:	f897 30c4 	ldrb.w	r3, [r7, #196]	@ 0xc4
- 800a3ba:	2b00      	cmp	r3, #0
- 800a3bc:	d004      	beq.n	800a3c8 <main+0x460>
- 800a3be:	f8d7 3134 	ldr.w	r3, [r7, #308]	@ 0x134
- 800a3c2:	3301      	adds	r3, #1
- 800a3c4:	f8c7 3134 	str.w	r3, [r7, #308]	@ 0x134
-    if (sens.gyro.status) n_gyro++;
- 800a3c8:	f897 30d4 	ldrb.w	r3, [r7, #212]	@ 0xd4
- 800a3cc:	2b00      	cmp	r3, #0
- 800a3ce:	d004      	beq.n	800a3da <main+0x472>
- 800a3d0:	f8d7 3130 	ldr.w	r3, [r7, #304]	@ 0x130
- 800a3d4:	3301      	adds	r3, #1
- 800a3d6:	f8c7 3130 	str.w	r3, [r7, #304]	@ 0x130
-    if (sens.mag.status) n_mag++;
- 800a3da:	f897 30e4 	ldrb.w	r3, [r7, #228]	@ 0xe4
- 800a3de:	2b00      	cmp	r3, #0
- 800a3e0:	d004      	beq.n	800a3ec <main+0x484>
- 800a3e2:	f8d7 312c 	ldr.w	r3, [r7, #300]	@ 0x12c
- 800a3e6:	3301      	adds	r3, #1
- 800a3e8:	f8c7 312c 	str.w	r3, [r7, #300]	@ 0x12c
-    if (sens.baro.status) n_baro++;
- 800a3ec:	f897 30ec 	ldrb.w	r3, [r7, #236]	@ 0xec
- 800a3f0:	2b00      	cmp	r3, #0
- 800a3f2:	d004      	beq.n	800a3fe <main+0x496>
- 800a3f4:	f8d7 3128 	ldr.w	r3, [r7, #296]	@ 0x128
- 800a3f8:	3301      	adds	r3, #1
- 800a3fa:	f8c7 3128 	str.w	r3, [r7, #296]	@ 0x128
-
-    // IDLE leaves the filter untouched. CALIBRATING runs filter_init to level
-    // the attitude and capture the reference pressure, RUNNING runs filter_loop.
-    if (app_state_get() != APP_IDLE) {
- 800a3fe:	f7f6 fe23 	bl	8001048 <app_state_get>
- 800a402:	4603      	mov	r3, r0
- 800a404:	2b00      	cmp	r3, #0
- 800a406:	d013      	beq.n	800a430 <main+0x4c8>
-      filter_app_step(&sens, app_tick_time_s(), app_state_filter_active());
- 800a408:	f7f6 fefe 	bl	8001208 <app_tick_time_s>
- 800a40c:	eeb0 8a40 	vmov.f32	s16, s0
- 800a410:	eef0 8a60 	vmov.f32	s17, s1
- 800a414:	f7f6 fe48 	bl	80010a8 <app_state_filter_active>
- 800a418:	4603      	mov	r3, r0
- 800a41a:	461a      	mov	r2, r3
- 800a41c:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
- 800a420:	4611      	mov	r1, r2
- 800a422:	eeb0 0a48 	vmov.f32	s0, s16
- 800a426:	eef0 0a68 	vmov.f32	s1, s17
- 800a42a:	4618      	mov	r0, r3
- 800a42c:	f7f8 f81c 	bl	8002468 <filter_app_step>
+ 800a41e:	f7f6 ff0d 	bl	800123c <app_cycles>
+ 800a422:	4602      	mov	r2, r0
+ 800a424:	f8d7 3108 	ldr.w	r3, [r7, #264]	@ 0x108
+ 800a428:	1ad3      	subs	r3, r2, r3
+ 800a42a:	f8c7 3114 	str.w	r3, [r7, #276]	@ 0x114
     }
 
     buttons_poll();
- 800a430:	f7f7 fd1e 	bl	8001e70 <buttons_poll>
+ 800a42e:	f7f7 fd1f 	bl	8001e70 <buttons_poll>
 
     if (app_state_update()) {
- 800a434:	f7f6 fdb4 	bl	8000fa0 <app_state_update>
- 800a438:	4603      	mov	r3, r0
- 800a43a:	2b00      	cmp	r3, #0
- 800a43c:	d01b      	beq.n	800a476 <main+0x50e>
+ 800a432:	f7f6 fdb5 	bl	8000fa0 <app_state_update>
+ 800a436:	4603      	mov	r3, r0
+ 800a438:	2b00      	cmp	r3, #0
+ 800a43a:	d01b      	beq.n	800a474 <main+0x50c>
       // Stopping discards the estimate, so the next calibration starts clean
       // rather than continuing from a state the user has abandoned.
       if (app_state_get() == APP_IDLE) {
- 800a43e:	f7f6 fe03 	bl	8001048 <app_state_get>
- 800a442:	4603      	mov	r3, r0
- 800a444:	2b00      	cmp	r3, #0
- 800a446:	d101      	bne.n	800a44c <main+0x4e4>
+ 800a43c:	f7f6 fe04 	bl	8001048 <app_state_get>
+ 800a440:	4603      	mov	r3, r0
+ 800a442:	2b00      	cmp	r3, #0
+ 800a444:	d101      	bne.n	800a44a <main+0x4e2>
         filter_app_reset();
- 800a448:	f7f7 ffc0 	bl	80023cc <filter_app_reset>
+ 800a446:	f7f7 ffc1 	bl	80023cc <filter_app_reset>
       }
       if (app_state_get() == APP_RUNNING) {
- 800a44c:	f7f6 fdfc 	bl	8001048 <app_state_get>
- 800a450:	4603      	mov	r3, r0
- 800a452:	2b02      	cmp	r3, #2
- 800a454:	d101      	bne.n	800a45a <main+0x4f2>
+ 800a44a:	f7f6 fdfd 	bl	8001048 <app_state_get>
+ 800a44e:	4603      	mov	r3, r0
+ 800a450:	2b02      	cmp	r3, #2
+ 800a452:	d101      	bne.n	800a458 <main+0x4f0>
         filter_app_clear_cost();
- 800a456:	f7f8 fa0b 	bl	8002870 <filter_app_clear_cost>
+ 800a454:	f7f8 fa0c 	bl	8002870 <filter_app_clear_cost>
       }
       printf("STATE %s\r\n", app_state_name(app_state_get()));
- 800a45a:	f7f6 fdf5 	bl	8001048 <app_state_get>
- 800a45e:	4603      	mov	r3, r0
- 800a460:	4618      	mov	r0, r3
- 800a462:	f7f6 fdfd 	bl	8001060 <app_state_name>
- 800a466:	4603      	mov	r3, r0
- 800a468:	4619      	mov	r1, r3
- 800a46a:	483a      	ldr	r0, [pc, #232]	@ (800a554 <main+0x5ec>)
- 800a46c:	f004 ffb8 	bl	800f3e0 <iprintf>
+ 800a458:	f7f6 fdf6 	bl	8001048 <app_state_get>
+ 800a45c:	4603      	mov	r3, r0
+ 800a45e:	4618      	mov	r0, r3
+ 800a460:	f7f6 fdfe 	bl	8001060 <app_state_name>
+ 800a464:	4603      	mov	r3, r0
+ 800a466:	4619      	mov	r1, r3
+ 800a468:	483a      	ldr	r0, [pc, #232]	@ (800a554 <main+0x5ec>)
+ 800a46a:	f004 ffb9 	bl	800f3e0 <iprintf>
       render_screen(false);
- 800a470:	2000      	movs	r0, #0
- 800a472:	f7ff fc6d 	bl	8009d50 <render_screen>
+ 800a46e:	2000      	movs	r0, #0
+ 800a470:	f7ff fc6e 	bl	8009d50 <render_screen>
     }
 
     if (buttons_pressed(BTN_LAP)) {
- 800a476:	2002      	movs	r0, #2
- 800a478:	f7f7 fd46 	bl	8001f08 <buttons_pressed>
- 800a47c:	4603      	mov	r3, r0
- 800a47e:	2b00      	cmp	r3, #0
- 800a480:	d024      	beq.n	800a4cc <main+0x564>
+ 800a474:	2002      	movs	r0, #2
+ 800a476:	f7f7 fd47 	bl	8001f08 <buttons_pressed>
+ 800a47a:	4603      	mov	r3, r0
+ 800a47c:	2b00      	cmp	r3, #0
+ 800a47e:	d024      	beq.n	800a4ca <main+0x562>
       gyro_angle_deg[0] = gyro_angle_deg[1] = gyro_angle_deg[2] = 0.0f;
- 800a482:	f04f 0300 	mov.w	r3, #0
- 800a486:	f8c7 30b4 	str.w	r3, [r7, #180]	@ 0xb4
- 800a48a:	f8d7 30b4 	ldr.w	r3, [r7, #180]	@ 0xb4
- 800a48e:	f8c7 30b0 	str.w	r3, [r7, #176]	@ 0xb0
- 800a492:	f8d7 30b0 	ldr.w	r3, [r7, #176]	@ 0xb0
- 800a496:	f8c7 30ac 	str.w	r3, [r7, #172]	@ 0xac
+ 800a480:	f04f 0300 	mov.w	r3, #0
+ 800a484:	f8c7 30b4 	str.w	r3, [r7, #180]	@ 0xb4
+ 800a488:	f8d7 30b4 	ldr.w	r3, [r7, #180]	@ 0xb4
+ 800a48c:	f8c7 30b0 	str.w	r3, [r7, #176]	@ 0xb0
+ 800a490:	f8d7 30b0 	ldr.w	r3, [r7, #176]	@ 0xb0
+ 800a494:	f8c7 30ac 	str.w	r3, [r7, #172]	@ 0xac
       printf("LAP t=%lums state=%s\r\n",
              (unsigned long)HAL_GetTick(), app_state_name(app_state_get()));
- 800a49a:	f000 feaf 	bl	800b1fc <HAL_GetTick>
- 800a49e:	4604      	mov	r4, r0
+ 800a498:	f000 feb0 	bl	800b1fc <HAL_GetTick>
+ 800a49c:	4604      	mov	r4, r0
       printf("LAP t=%lums state=%s\r\n",
- 800a4a0:	f7f6 fdd2 	bl	8001048 <app_state_get>
- 800a4a4:	4603      	mov	r3, r0
- 800a4a6:	4618      	mov	r0, r3
- 800a4a8:	f7f6 fdda 	bl	8001060 <app_state_name>
- 800a4ac:	4603      	mov	r3, r0
- 800a4ae:	461a      	mov	r2, r3
- 800a4b0:	4621      	mov	r1, r4
- 800a4b2:	4829      	ldr	r0, [pc, #164]	@ (800a558 <main+0x5f0>)
- 800a4b4:	f004 ff94 	bl	800f3e0 <iprintf>
+ 800a49e:	f7f6 fdd3 	bl	8001048 <app_state_get>
+ 800a4a2:	4603      	mov	r3, r0
+ 800a4a4:	4618      	mov	r0, r3
+ 800a4a6:	f7f6 fddb 	bl	8001060 <app_state_name>
+ 800a4aa:	4603      	mov	r3, r0
+ 800a4ac:	461a      	mov	r2, r3
+ 800a4ae:	4621      	mov	r1, r4
+ 800a4b0:	4829      	ldr	r0, [pc, #164]	@ (800a558 <main+0x5f0>)
+ 800a4b2:	f004 ff95 	bl	800f3e0 <iprintf>
 
       // Capture the state as it stands and hold it on screen. The filter is
       // untouched by this: it keeps stepping every tick, and only the redraw
       // is suspended, so the snapshot ages rather than the estimate stalling.
       render_screen(true);
- 800a4b8:	2001      	movs	r0, #1
- 800a4ba:	f7ff fc49 	bl	8009d50 <render_screen>
+ 800a4b6:	2001      	movs	r0, #1
+ 800a4b8:	f7ff fc4a 	bl	8009d50 <render_screen>
       display_freeze_until_ms = HAL_GetTick() + LAP_FREEZE_MS;
- 800a4be:	f000 fe9d 	bl	800b1fc <HAL_GetTick>
- 800a4c2:	4603      	mov	r3, r0
- 800a4c4:	f503 737a 	add.w	r3, r3, #1000	@ 0x3e8
- 800a4c8:	f8c7 3120 	str.w	r3, [r7, #288]	@ 0x120
+ 800a4bc:	f000 fe9e 	bl	800b1fc <HAL_GetTick>
+ 800a4c0:	4603      	mov	r3, r0
+ 800a4c2:	f503 737a 	add.w	r3, r3, #1000	@ 0x3e8
+ 800a4c6:	f8c7 3120 	str.w	r3, [r7, #288]	@ 0x120
     }
 
     // Live redraw at 5 Hz, unless a LAP snapshot is being held. display_service
     // runs either way, so the held frame still finishes reaching the panel.
     if (++ticks_since_render >= APP_TICK_HZ / 5u) {
- 800a4cc:	f8d7 3124 	ldr.w	r3, [r7, #292]	@ 0x124
- 800a4d0:	3301      	adds	r3, #1
- 800a4d2:	f8c7 3124 	str.w	r3, [r7, #292]	@ 0x124
- 800a4d6:	f8d7 3124 	ldr.w	r3, [r7, #292]	@ 0x124
- 800a4da:	2b13      	cmp	r3, #19
- 800a4dc:	d90d      	bls.n	800a4fa <main+0x592>
+ 800a4ca:	f8d7 3124 	ldr.w	r3, [r7, #292]	@ 0x124
+ 800a4ce:	3301      	adds	r3, #1
+ 800a4d0:	f8c7 3124 	str.w	r3, [r7, #292]	@ 0x124
+ 800a4d4:	f8d7 3124 	ldr.w	r3, [r7, #292]	@ 0x124
+ 800a4d8:	2b13      	cmp	r3, #19
+ 800a4da:	d90d      	bls.n	800a4f8 <main+0x590>
       ticks_since_render = 0;
- 800a4de:	2300      	movs	r3, #0
- 800a4e0:	f8c7 3124 	str.w	r3, [r7, #292]	@ 0x124
+ 800a4dc:	2300      	movs	r3, #0
+ 800a4de:	f8c7 3124 	str.w	r3, [r7, #292]	@ 0x124
       if ((int32_t)(HAL_GetTick() - display_freeze_until_ms) >= 0) {
- 800a4e4:	f000 fe8a 	bl	800b1fc <HAL_GetTick>
- 800a4e8:	4602      	mov	r2, r0
- 800a4ea:	f8d7 3120 	ldr.w	r3, [r7, #288]	@ 0x120
- 800a4ee:	1ad3      	subs	r3, r2, r3
- 800a4f0:	2b00      	cmp	r3, #0
- 800a4f2:	db02      	blt.n	800a4fa <main+0x592>
+ 800a4e2:	f000 fe8b 	bl	800b1fc <HAL_GetTick>
+ 800a4e6:	4602      	mov	r2, r0
+ 800a4e8:	f8d7 3120 	ldr.w	r3, [r7, #288]	@ 0x120
+ 800a4ec:	1ad3      	subs	r3, r2, r3
+ 800a4ee:	2b00      	cmp	r3, #0
+ 800a4f0:	db02      	blt.n	800a4f8 <main+0x590>
         render_screen(false);
- 800a4f4:	2000      	movs	r0, #0
- 800a4f6:	f7ff fc2b 	bl	8009d50 <render_screen>
+ 800a4f2:	2000      	movs	r0, #0
+ 800a4f4:	f7ff fc2c 	bl	8009d50 <render_screen>
       }
     }
     display_service();
- 800a4fa:	f7f7 fe93 	bl	8002224 <display_service>
+ 800a4f8:	f7f7 fe94 	bl	8002224 <display_service>
 
     if ((int32_t)(HAL_GetTick() - next_report_ms) >= 0) {
- 800a4fe:	f000 fe7d 	bl	800b1fc <HAL_GetTick>
- 800a502:	4602      	mov	r2, r0
- 800a504:	f8d7 3138 	ldr.w	r3, [r7, #312]	@ 0x138
- 800a508:	1ad3      	subs	r3, r2, r3
- 800a50a:	2b00      	cmp	r3, #0
- 800a50c:	f6ff ada0 	blt.w	800a050 <main+0xe8>
+ 800a4fc:	f000 fe7e 	bl	800b1fc <HAL_GetTick>
+ 800a500:	4602      	mov	r2, r0
+ 800a502:	f8d7 3138 	ldr.w	r3, [r7, #312]	@ 0x138
+ 800a506:	1ad3      	subs	r3, r2, r3
+ 800a508:	2b00      	cmp	r3, #0
+ 800a50a:	f6ff ada1 	blt.w	800a050 <main+0xe8>
       // Magnitudes are the quickest check that the units are right: at rest
       // |accel| should be ~9.81 m/s^2 and |mag| should be tens of microtesla.
       float a_norm = vec3_norm(sens.accel.meas);
- 800a510:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
- 800a514:	4618      	mov	r0, r3
- 800a516:	f7ff fb37 	bl	8009b88 <vec3_norm>
- 800a51a:	ed87 0a3f 	vstr	s0, [r7, #252]	@ 0xfc
+ 800a50e:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
+ 800a512:	4618      	mov	r0, r3
+ 800a514:	f7ff fb38 	bl	8009b88 <vec3_norm>
+ 800a518:	ed87 0a3f 	vstr	s0, [r7, #252]	@ 0xfc
       float m_norm = vec3_norm(sens.mag.meas);
- 800a51e:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
- 800a522:	3320      	adds	r3, #32
- 800a524:	4618      	mov	r0, r3
- 800a526:	f7ff fb2f 	bl	8009b88 <vec3_norm>
- 800a52a:	ed87 0a3e 	vstr	s0, [r7, #248]	@ 0xf8
+ 800a51c:	f107 03b8 	add.w	r3, r7, #184	@ 0xb8
+ 800a520:	3320      	adds	r3, #32
+ 800a522:	4618      	mov	r0, r3
+ 800a524:	f7ff fb30 	bl	8009b88 <vec3_norm>
+ 800a528:	ed87 0a3e 	vstr	s0, [r7, #248]	@ 0xf8
 
       // Sample counts are doubled into per-second rates: the window is 500 ms.
       printf("%-11s | tick(n=%lu dt=%lu..%lu us over=%lu)"
- 800a52e:	f7f6 fd8b 	bl	8001048 <app_state_get>
- 800a532:	4603      	mov	r3, r0
- 800a534:	4618      	mov	r0, r3
- 800a536:	f7f6 fd93 	bl	8001060 <app_state_name>
- 800a53a:	f8c7 0090 	str.w	r0, [r7, #144]	@ 0x90
- 800a53e:	f8d7 313c 	ldr.w	r3, [r7, #316]	@ 0x13c
- 800a542:	2b00      	cmp	r3, #0
- 800a544:	d00a      	beq.n	800a55c <main+0x5f4>
- 800a546:	f8d7 3144 	ldr.w	r3, [r7, #324]	@ 0x144
- 800a54a:	f8c7 3098 	str.w	r3, [r7, #152]	@ 0x98
- 800a54e:	e008      	b.n	800a562 <main+0x5fa>
+ 800a52c:	f7f6 fd8c 	bl	8001048 <app_state_get>
+ 800a530:	4603      	mov	r3, r0
+ 800a532:	4618      	mov	r0, r3
+ 800a534:	f7f6 fd94 	bl	8001060 <app_state_name>
+ 800a538:	f8c7 0090 	str.w	r0, [r7, #144]	@ 0x90
+ 800a53c:	f8d7 313c 	ldr.w	r3, [r7, #316]	@ 0x13c
+ 800a540:	2b00      	cmp	r3, #0
+ 800a542:	d00b      	beq.n	800a55c <main+0x5f4>
+ 800a544:	f8d7 3144 	ldr.w	r3, [r7, #324]	@ 0x144
+ 800a548:	f8c7 3098 	str.w	r3, [r7, #152]	@ 0x98
+ 800a54c:	e009      	b.n	800a562 <main+0x5fa>
+ 800a54e:	bf00      	nop
  800a550:	08014b58 	.word	0x08014b58
  800a554:	08014b4c 	.word	0x08014b4c
  800a558:	08014bd4 	.word	0x08014bd4

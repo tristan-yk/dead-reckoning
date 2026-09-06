@@ -280,6 +280,17 @@ int main(void)
       }
     }
 
+    if (sens.accel.status) n_accel++;
+    if (sens.gyro.status) n_gyro++;
+    if (sens.mag.status) n_mag++;
+    if (sens.baro.status) n_baro++;
+
+    // IDLE leaves the filter untouched. CALIBRATING runs filter_init to level
+    // the attitude and capture the reference pressure, RUNNING runs filter_loop.
+    if (app_state_get() != APP_IDLE) {
+      filter_app_step(&sens, app_tick_time_s(), app_state_filter_active());
+    }
+
     // Full state and every raw measurement, one row per tick at APP_TICK_HZ.
     // The dashboard reads these; the human-readable status line below is
     // separate and distinguishable because it does not start with "S,".
@@ -287,6 +298,11 @@ int main(void)
     // Raw sensor values are sent rather than anything derived, so the dashboard
     // can recompute things like the accelerometer gate itself instead of the
     // firmware duplicating logic that lives in the generated filter.
+    //
+    // This runs after filter_app_step, not before, so the state and the
+    // measurements in a row belong to the same tick. Emitting it earlier paired
+    // this tick's sensors with last tick's state, a fixed one-tick skew that is
+    // invisible on the dashboard but would misalign an offline replay.
     {
       uint32_t tx_start = app_cycles();
       const filter_output_t *fo = filter_app_output();
@@ -310,17 +326,6 @@ int main(void)
              (double)sens.mag.meas[0], (double)sens.mag.meas[1], (double)sens.mag.meas[2],
              (double)sens.baro.meas, (double)sens.baro_temperature_c);
       stream_cycles = app_cycles() - tx_start;
-    }
-
-    if (sens.accel.status) n_accel++;
-    if (sens.gyro.status) n_gyro++;
-    if (sens.mag.status) n_mag++;
-    if (sens.baro.status) n_baro++;
-
-    // IDLE leaves the filter untouched. CALIBRATING runs filter_init to level
-    // the attitude and capture the reference pressure, RUNNING runs filter_loop.
-    if (app_state_get() != APP_IDLE) {
-      filter_app_step(&sens, app_tick_time_s(), app_state_filter_active());
     }
 
     buttons_poll();

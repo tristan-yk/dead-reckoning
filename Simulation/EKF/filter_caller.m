@@ -1,4 +1,4 @@
-function [attitude, altitude, P_norm] = filter_caller(time, accel, gyro, mag, baro)
+function [attitude, altitude, P_norm, x_out, P_out] = filter_caller(time, accel, gyro, mag, baro)
     
     idle_time = 10;
 
@@ -50,5 +50,7 @@ function [attitude, altitude, P_norm] = filter_caller(time, accel, gyro, mag, ba
     attitude = state(1:4);
     altitude = state(10);
     P_norm = norm(P);
+    x_out = state;
+    P_out = P(:);
 
 end
